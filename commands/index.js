@@ -3,6 +3,7 @@ const { handlePokemon } = require('./pokemon');
 const { handlePoketeam } = require('./poketeam');
 const { handlePokebatle } = require('./pokebatle');
 const { handlePokehelp } = require('./pokehelp');
+const { handlePokeStats } = require('./pokestats');
 
 const COOLDOWN_POKEMON_MS = 4000;
 const COOLDOWN_POKETEAM_MS = 4000;
@@ -47,6 +48,25 @@ async function handleCommand(msg) {
 
     console.log('[!] Comando de batalla detectado.');
     await handlePokebatle(msg, rival);
+    return;
+  }
+
+  if (textoMinuscula.startsWith('#pokestats') || textoMinuscula.startsWith('#pokestas')) {
+    let mentionIds = msg.mentionedIds || [];
+    if (mentionIds.length === 0 && typeof msg.getMentions === 'function') {
+      const mentions = await msg.getMentions();
+      mentionIds = mentions.map((m) => m.id && m.id._serialized ? m.id._serialized : '').filter(Boolean);
+    }
+
+    if (textoMinuscula.startsWith('#pokestas')) {
+      if (mentionIds.length === 0) {
+        return await msg.reply('❌ Debes mencionar a un entrenador con @ para ver sus estadísticas.\n👉 Ejemplo: #pokestas @Marco');
+      }
+      const targetId = mentionIds[0].split('@')[0].split(':')[0];
+      await handlePokeStats(msg, targetId);
+    } else {
+      await handlePokeStats(msg, null);
+    }
     return;
   }
 

@@ -86,9 +86,26 @@ async function obtenerPokedex(whatsappId) {
         }
     }
 
+async function contarCapturas(whatsappId) {
+  try {
+    const [rows] = await db.execute(
+      `SELECT COUNT(*) AS total
+       FROM pokemon_atrapados pa
+       JOIN usuarios u ON pa.usuario_id = u.id
+       WHERE u.whatsapp_id = ?`,
+      [whatsappId]
+    );
+    return rows.length > 0 ? rows[0].total : 0;
+  } catch (error) {
+    console.error('Error al contar capturas:', error);
+    return 0;
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
   obtenerPokedex,
-  verificarYObtenerPokemon
+  verificarYObtenerPokemon,
+  contarCapturas
 };
