@@ -175,7 +175,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#poketrain') ||
         textoMinuscula === '#pokedaily' ||
         textoMinuscula.startsWith('#pokestats') ||
-        textoMinuscula.startsWith('#pokestas') ||
+        textoMinuscula.startsWith('#pokemonstats') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -382,6 +382,14 @@ class BotManager extends EventEmitter {
             console.error('Error en #pokerealease:', err);
             return;
           }
+        }
+
+        // ==========================================
+        // COMANDO: #pokemonstats [nombre_pokemon]
+        // ==========================================
+        if (textoMinuscula.startsWith('#pokemonstats')) {
+          const { handlePokemonStats } = require('../commands/pokemonStats'); // Corrige la ruta según tus carpetas
+          return await handlePokemonStats(msg);
         }
 
         // ==========================================

@@ -133,7 +133,7 @@ async function obtenerPokedex(whatsappId) {
         try {
       const [rows] = await db.execute(
         `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel, pa.experiencia, pa.fecha_entrenamiento,
-        pa.fecha_ultimo_combate, pa.combates
+        pa.fecha_ultimo_combate, pa.combates, pa.atrapado_en
         FROM pokemon_atrapados pa
         JOIN usuarios u ON pa.usuario_id = u.id
         WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
