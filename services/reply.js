@@ -51,6 +51,10 @@ async function sendSticker(chat, imageUrl, stickerName, quoteId) {
 
 // 3. Funciones de respuesta exportadas
 async function replyText(msg, text) {
+  if (!msg || typeof msg.reply !== 'function') {
+    console.error('replyText: msg inválido o sin método reply');
+    throw new Error('No se puede enviar respuesta: mensaje inválido.');
+  }
   return msg.reply(text);
 }
 

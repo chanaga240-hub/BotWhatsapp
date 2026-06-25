@@ -146,7 +146,7 @@ class BotManager extends EventEmitter {
       this.qrDataUrl = null;
       this.setStatus('ready');
       this.log('Bot listo y escuchando comandos 24/7.');
-      this.log('Comandos: #pokeregister, #pokemon, #pokesalvaje, #capture, #poketeam, #pokebatle, #pokestats, #pokehelp');
+      this.log('Comandos: #pokeregister, #pokemon, #pokesalvaje, #capture, #poketeam, #pokebatle, #poketrain, #pokestats, #pokehelp');
       this.iniciarCronSalvajes();
     });
 
@@ -167,7 +167,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokemon') ||
         textoMinuscula === '#poketeam' ||
         textoMinuscula.startsWith('#pokebatle') || 
-        textoMinuscula.startsWith('#pokeaccept') ||
+      textoMinuscula.startsWith('#poketrain') ||
         textoMinuscula === '#pokedaily' ||
         textoMinuscula.startsWith('#pokestats') ||
         textoMinuscula.startsWith('#pokestas') ||

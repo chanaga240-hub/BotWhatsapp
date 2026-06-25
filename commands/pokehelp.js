@@ -26,6 +26,8 @@ const AYUDA =
   `• *#pokebatle @mencion [nombre]*\r\n` +
   `  Reta a un amigo usando un Pokémon de tu Pokédex.\r\n` +
   `  _(Ej: #pokebatle @Marco Gengar)_\r\n` +
+  `• *#poketrain [nombre]*\r\n` +
+  `  Entrena a un Pokémon y gana +5 de experiencia.\r\n` +
   `• *#pokestats*\r\n` +
   `  Muestra tus estadísticas de entrenador y el total de Pokémon capturados.\r\n` +
   `• *#pokestas @mención*\r\n` +

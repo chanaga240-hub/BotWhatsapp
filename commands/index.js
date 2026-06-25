@@ -2,6 +2,7 @@ const { isOnCooldown, setCooldown } = require('../services/cooldown');
 const { handlePokemon } = require('./pokemon');
 const { handlePoketeam } = require('./poketeam');
 const { handlePokebatle } = require('./pokebatle');
+const { handlePokeTrain } = require('./poketrain');
 const { handlePokehelp } = require('./pokehelp');
 const { handlePokeStats } = require('./pokestats');
 
@@ -48,6 +49,17 @@ async function handleCommand(msg) {
 
     console.log('[!] Comando de batalla detectado.');
     await handlePokebatle(msg, rival);
+    return;
+  }
+
+  if (textoMinuscula.startsWith('#poketrain')) {
+    const nombrePokemon = textoCompleto.substring(10).trim();
+    if (!nombrePokemon) {
+      return await msg.reply('❌ Debes indicar el nombre del Pokémon que quieres entrenar.\n👉 Ejemplo: #poketrain Marshadow');
+    }
+
+    console.log('[!] Comando de entrenamiento detectado.');
+    await handlePokeTrain(msg, nombrePokemon);
     return;
   }
 

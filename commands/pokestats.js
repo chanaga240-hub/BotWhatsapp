@@ -32,7 +32,7 @@ async function handlePokeStats(msg, targetId = null) {
     await replyText(msg, mensaje);
   } catch (error) {
     console.error('Error en #pokestats:', error);
-    await msg.reply('⚠️ Hubo un error al obtener tus estadísticas. Inténtalo de nuevo.');
+    await replyText(msg, '⚠️ Hubo un error al obtener tus estadísticas. Inténtalo de nuevo.');
   }
 }
 

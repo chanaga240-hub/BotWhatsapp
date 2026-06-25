@@ -72,7 +72,7 @@ async function obtenerPokedex(whatsappId) {
     async function verificarYObtenerPokemon(whatsappId, nombrePokemon) {
         try {
         const [rows] = await db.execute(
-            `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel
+            `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel, pa.experiencia, pa.fecha_entrenamiento
             FROM pokemon_atrapados pa
             JOIN usuarios u ON pa.usuario_id = u.id
             WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
@@ -102,10 +102,55 @@ async function contarCapturas(whatsappId) {
   }
 }
 
+async function entrenarPokemon(whatsappId, nombrePokemon) {
+  const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
+  if (!pokemon) {
+    return { error: 'not_found' };
+  }
+
+  const ahora = new Date();
+  const ultima = pokemon.fecha_entrenamiento ? new Date(pokemon.fecha_entrenamiento) : null;
+  const cooldownMs = 30 * 60 * 1000;
+
+  if (ultima && ahora - ultima < cooldownMs) {
+    const restanteMs = cooldownMs - (ahora - ultima);
+    const minutos = Math.floor(restanteMs / (1000 * 60));
+    const segundos = Math.floor((restanteMs % (1000 * 60)) / 1000);
+    return {
+      error: 'cooldown',
+      remaining: { minutos, segundos },
+      pokemon: { nombre: pokemon.nombre }
+    };
+  }
+
+  const experienciaAnterior = pokemon.experiencia || 0;
+  const experienciaNueva = experienciaAnterior + 5;
+
+  try {
+    await db.execute(
+      'UPDATE pokemon_atrapados SET experiencia = IFNULL(experiencia, 0) + 5, fecha_entrenamiento = NOW() WHERE id = ?',
+      [pokemon.id]
+    );
+
+    return {
+      success: true,
+      pokemon: {
+        nombre: pokemon.nombre,
+        experienciaAnterior,
+        experienciaNueva
+      }
+    };
+  } catch (error) {
+    console.error('Error al entrenar Pokémon:', error);
+    return { error: 'db_error' };
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
   obtenerPokedex,
   verificarYObtenerPokemon,
-  contarCapturas
+  contarCapturas,
+  entrenarPokemon
 };
