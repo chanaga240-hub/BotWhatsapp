@@ -52,6 +52,13 @@ async function handleCommand(msg) {
     return;
   }
 
+  if (textoMinuscula.startsWith('#pokegive')) {
+    const { handlePokeGive } = require('./pokegive');
+    console.log('[!] Comando de donación detectado.');
+    await handlePokeGive(msg, textoCompleto);
+    return;
+  }
+
   if (textoMinuscula.startsWith('#poketrain')) {
     const nombrePokemon = textoCompleto.substring(10).trim();
     if (!nombrePokemon) {

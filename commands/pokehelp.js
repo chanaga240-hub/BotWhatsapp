@@ -1,57 +1,52 @@
 const usuarioService = require('../services/usuarioService');
+const fs = require('fs');
+const path = require('path');
 
-const { replyText } = require('../services/reply');
+const { replyText, replyWithImage } = require('../services/reply');
+
+const HELP_IMAGE_PATH = path.join(process.cwd(), 'public', 'pokehelp.png');
+const HELP_IMAGE_CAPTION = '📋 Guía de comandos Pokémon';
 
 const AYUDA =
   `📋 *MENÚ GENERAL DE COMANDOS POKÉMON* 📋\r\n` +
   `───────────────────────\r\n\r\n` +
   
   `🆕 *GESTIÓN DE ENTRENADOR*\r\n` +
-  `• *#pokeregister*\r\n` +
-  `  Crea tu perfil inicial y recibe *10 Pokéballs* 🎒.\r\n` +
-  `• *#pokedaily*\r\n` +
-  `  Reclama tus *5 Pokéballs* gratuitas cada 24 horas 🎁.\r\n` +
-  `• *#pokedex*\r\n` +
-  `  Muestra tus Pokémon capturados (*Envío al privado* 📬).\r\n\r\n` +
+  `• *#pokeregister* - Crea tu perfil y recibe 10 Pokéballs 🎒.\r\n` +
+  `• *#pokedaily* - Reclama 5 Pokéballs cada 24 horas 🎁.\r\n` +
+  `• *#pokedex* - Muestra tus Pokémon capturados (vía privado 📬).\r\n` +
+  `• *#pokestats* - Tus estadísticas de entrenador.\r\n` +
+  `• *#pokestats @mención* - Estadísticas de otro entrenador.\r\n\r\n` +
 
   `🕵️ *EXPLORACIÓN Y CAPTURA*\r\n` +
-  `• *#pokemon*\r\n` +
-  `  Información detallada de un Pokémon aleatorio.\r\n` +
-  `• *#pokemon [nombre]*\r\n` +
-    `• *#pokerealease [nombre]*\r\n` +
-    `  Libera un Pokémon de tu Pokédex y lo convierte en un Pokémon salvaje en los grupos permitidos.\r\n` +
-  `  Busca un Pokémon por su nombre (ej: _#pokemon charizard_).\r\n` +
-  `• *#capture*\r\n` +
-  `  Intenta atrapar al Pokémon salvaje activo (20% éxito) 💥.\r\n\r\n` +
+  `• *#pokemon* - Información de un Pokémon aleatorio.\r\n` +
+  `• *#pokemon [nombre]* - Busca un Pokémon específico.\r\n` +
+  `• *#capture* - Intenta atrapar al Pokémon salvaje actual (20% éxito) 💥.\r\n` +
+  `• *#pokerealease [nombre]* - Libera un Pokémon de tu Pokédex al entorno.
+` +
+  `• *#pokegive @mención [nombre]* - Dona un Pokémon a otro entrenador con todas sus estadísticas.\r\n\r\n` +
 
-  `⚔️ *COMBATES POKÉMON*\r\n` +
-  `• *#pokebatle @mencion [nombre]*\r\n` +
-  `  Reta a un amigo usando un Pokémon de tu Pokédex.\r\n` +
-  `  _(Ej: #pokebatle @Marco Gengar)_\r\n` +
-  `• *#poketrain [nombre]*\r\n` +
-  `  Entrena a un Pokémon y gana +5 de experiencia.\r\n` +
-  `• *#pokestats*\r\n` +
-  `  Muestra tus estadísticas de entrenador y el total de Pokémon capturados.\r\n` +
-  `• *#pokestas @mención*\r\n` +
-  `• *#pokeaccept [nombre]*\r\n` +
-  `  Acepta un desafío activo defendiéndote con tu propio Pokémon.\r\n` +
-  `  _(Ej: #pokeaccept Tyranitar)_\r\n\r\n` +
+  `⚔️ *COMBATES Y ENTRENAMIENTO*\r\n` +
+  `• *#pokebatle @mención [nombre]* - Reta a un amigo a un duelo.\r\n` +
+  `• *#pokeaccept [nombre]* - Acepta un desafío usando tu propio Pokémon.\r\n` +
+  `• *#poketrain [nombre]* - Entrenamiento intensivo (+5 EXP) 🏋️.\r\n\r\n` +
 
   `🔮 *EXTRAS Y UTILIDADES*\r\n` +
-  `• *#poketeam*\r\n` +
-  `  Genera un equipo aleatorio de 6 Pokémon con stickers.\r\n` +
-  `• *#pokehelp*\r\n` +
-  `  Muestra esta guía de comandos en el chat.\r\n\r\n` +
+  `• *#poketeam* - Genera un equipo aleatorio de 6 Pokémon (Stickers).\r\n` +
+  `• *#pokehelp* - Muestra esta guía de comandos.\r\n\r\n` +
 
   `───────────────────────\r\n` +
   `👑 *COMANDOS ADMIN*\r\n` +
-  `• *#pokesalvaje*\r\n` +
-  `  Invoca un Pokémon salvaje con estadísticas en el grupo.\r\n\r\n` +
+  `• *#pokesalvaje* - Invoca un Pokémon salvaje en el grupo.\r\n\r\n` +
   `───────────────────────\r\n` +
-  `🎒 _Nota: Los Pokémon de las alertas se envían en formato Sticker para no saturar tu almacenamiento._`;
+  `🎒 _Nota: Los Pokémon se envían como stickers para optimizar el chat._`;
 
 async function handlePokehelp(msg) {
-  await replyText(msg, AYUDA);
+  if (fs.existsSync(HELP_IMAGE_PATH)) {
+    return await replyWithImage(msg, HELP_IMAGE_PATH, HELP_IMAGE_CAPTION);
+  }
+
+  return await replyText(msg, AYUDA);
 }
 
 module.exports = { handlePokehelp };

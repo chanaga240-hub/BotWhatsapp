@@ -112,6 +112,29 @@ async function replyWithLabeledStickers(msg, text, labeledItems, textFirst = fal
   }
 }
 
+async function replyWithImage(msg, imagePath, caption = '') {
+  if (!msg || typeof msg.reply !== 'function') {
+    console.error('replyWithImage: msg inválido o sin método reply');
+    throw new Error('No se puede enviar imagen: mensaje inválido.');
+  }
+
+  if (!fs.existsSync(imagePath)) {
+    console.error(`replyWithImage: no se encontró la imagen en la ruta ${imagePath}`);
+    return await replyText(msg, caption || 'La imagen de ayuda no está disponible.');
+  }
+
+  try {
+    const media = MessageMedia.fromFilePath(imagePath);
+    const chat = await msg.getChat();
+    const options = { quotedMessageId: msg.id._serialized };
+    if (caption) options.caption = caption;
+    return await chat.sendMessage(media, options);
+  } catch (error) {
+    console.error('Error al enviar imagen de ayuda:', error);
+    return await replyText(msg, caption || 'No se pudo enviar la imagen de ayuda.');
+  }
+}
+
 const { execFile } = require('child_process'); // Pon esto arriba o dentro de la función
 
 async function replyWithAudio(msg, audioUrl) {
@@ -169,5 +192,6 @@ module.exports = {
   replyText,
   replyWithSticker,
   replyWithLabeledStickers,
+  replyWithImage,
   replyWithAudio,
 };
