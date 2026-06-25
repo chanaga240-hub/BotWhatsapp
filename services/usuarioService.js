@@ -48,17 +48,50 @@ async function reclamarDaily(usuarioId) {
 }
 
 async function sumarExperiencia(usuarioId, puntos) {
-    try {
-      await db.execute(
-        'UPDATE usuarios SET experiencia = experiencia + ? WHERE id = ?',
-        [puntos, usuarioId]
-      );
-      return true;
-    } catch (error) {
-      console.error('Error al sumar experiencia:', error);
-      return false;
-    }
+  try {
+    await db.execute(
+      'UPDATE usuarios SET experiencia = experiencia + ? WHERE id = ?',
+      [puntos, usuarioId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error al sumar experiencia:', error);
+    return false;
   }
+}
 
-  module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia };
+async function realizarTrabajo(usuarioId) {
+  try {
+    // 1. Verificamos el cooldown (10 minutos)
+    const [userRows] = await db.execute('SELECT fecha_trabajo FROM usuarios WHERE id = ?', [usuarioId]);
+    if (userRows.length === 0) return { error: 'user_not_found' };
 
+    const usuario = userRows[0];
+    const ahora = new Date();
+    const ultima = usuario.fecha_trabajo ? new Date(usuario.fecha_trabajo) : null;
+    const cooldownMs = 10 * 60 * 1000; // 10 minutos en milisegundos
+
+    if (ultima && (ahora - ultima) < cooldownMs) {
+      const restanteMs = cooldownMs - (ahora - ultima);
+      return { error: 'cooldown', remaining: restanteMs };
+    }
+
+    // 2. Buscamos un trabajo aleatorio de la tabla
+    const [trabajos] = await db.execute('SELECT * FROM trabajos ORDER BY RAND() LIMIT 1');
+    if (trabajos.length === 0) return { error: 'no_jobs' };
+    const trabajo = trabajos[0];
+
+    // 3. Pagamos al usuario y actualizamos la fecha del trabajo
+    await db.execute(
+      'UPDATE usuarios SET monedas = monedas + ?, fecha_trabajo = ? WHERE id = ?',
+      [trabajo.ganancia, ahora, usuarioId]
+    );
+
+    return { exito: true, trabajo: trabajo };
+  } catch (error) {
+    console.error('Error en realizarTrabajo:', error);
+    return { error: 'db_error' };
+  }
+}
+
+module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, realizarTrabajo };

@@ -173,6 +173,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokeaccept') ||
         textoMinuscula.startsWith('#poketrain') ||
         textoMinuscula === '#pokedaily' ||
+        textoMinuscula === '#pokejob' ||
         textoMinuscula.startsWith('#pokestats') ||
         textoMinuscula.startsWith('#pokemonstats') ||
         textoMinuscula === '#pokehelp';
@@ -211,6 +212,14 @@ class BotManager extends EventEmitter {
           return await msg.reply(
             `🛑 *¡Alto ahí, Entrenador!* 🛑\n\nNo tienes un perfil creado en este servidor.\n\nPara poder capturar Pokémon, participar en duelos y ver tu inventario, primero debes registrarte ejecutando:\n👉 *#pokeregister*`
           );
+        }
+
+        // ==========================================
+        // COMANDO: #pokejob
+        // ==========================================
+        if (textoMinuscula === '#pokejob') {
+          const { handlePokeJob } = require('../commands/pokejob');
+          return await handlePokeJob(msg);
         }
 
         // ==========================================
