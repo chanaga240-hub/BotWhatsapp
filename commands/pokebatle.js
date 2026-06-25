@@ -26,7 +26,7 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.\n👉 Ejemplo: `#pokebatle @Marco Pikachu`');
     }
 
-    // ✅ CORRECCIÓN: Limpiamos el ID del retador de sufijos de dispositivo (:66)
+    // Limpiamos el ID del retador de sufijos de dispositivo (:66)
     const idRetador = (msg.author || msg.from).split('@')[0].split(':')[0];
 
     const objetosMenciones = await msg.getMentions();
@@ -36,7 +36,7 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.');
     }
 
-    // ✅ CORRECCIÓN: Limpiamos el ID del rival
+    // Limpiamos el ID del rival
     const idRival = msg.mentionedIds[0].split('@')[0].split(':')[0];
 
     if (idRetador === idRival) {
@@ -101,7 +101,7 @@ async function handlePokebatle(msg, argsText = '') {
 
 async function handlePokeaccept(msg, pokemonRivalNombre = '') {
   try {
-    // ✅ CORRECCIÓN: Limpiamos el sufijo del ID de quien acepta (:66) para que coincida con el mapa
+    // Limpiamos el sufijo del ID de quien acepta (:66) para que coincida con el mapa
     const idRival = (msg.author || msg.from).split('@')[0].split(':')[0];
 
     // Ahora sí coincidirán las llaves en la memoria
@@ -167,16 +167,20 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     const multNivel1 = 1 + (desafio.pokemonRetador.nivel - 1) * 0.05;
     const multNivel2 = 1 + (pokeInventarioRival.nivel - 1) * 0.05;
 
+    // Se agrega el nivel al objeto combatiente para poder calcular la ventaja luego
     const p1 = {
       nombre: desafio.pokemonRetador.nombre,
+      nivel: desafio.pokemonRetador.nivel,
       hp: Math.floor(getStat(pokeJugador, 'hp') * 2 * multNivel1),
       atk: Math.floor(getStat(pokeJugador, 'attack') * multNivel1),
       def: Math.floor(getStat(pokeJugador, 'defense') * multNivel1),
       vel: Math.floor(getStat(pokeJugador, 'speed') * multNivel1),
     };
 
+    // Se agrega el nivel al objeto combatiente para poder calcular la ventaja luego
     const p2 = {
       nombre: pokeInventarioRival.nombre,
+      nivel: pokeInventarioRival.nivel,
       hp: Math.floor(getStat(pokeRival, 'hp') * 2 * multNivel2),
       atk: Math.floor(getStat(pokeRival, 'attack') * multNivel2),
       def: Math.floor(getStat(pokeRival, 'defense') * multNivel2),
@@ -204,21 +208,39 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       const atacante = turnoJugador ? p1 : p2;
       const defensor = turnoJugador ? p2 : p1;
 
-      let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
-      if (danioBase < 12) {
-        danioBase = Math.floor(Math.random() * 8) + 12;
+      // ---------------------------------------------
+      // SISTEMA DE ESQUIVE (Velocidad + Bono Nivel)
+      // ---------------------------------------------
+      let probEsquivarBase = defensor.vel / 20; // Fórmula base
+      let diffNivel = defensor.nivel - atacante.nivel; // Diferencia de nivel
+      let bonoNivel = diffNivel > 0 ? diffNivel : 0; // +1% por cada nivel superior
+      
+      let probTotalEsquive = probEsquivarBase + bonoNivel;
+      
+      const dadoEsquivar = Math.random() * 100;
+
+      if (dadoEsquivar <= probTotalEsquive) {
+        cronica += `• 💨 ¡*${atacante.nombre}* ataca, pero *${defensor.nombre}* logra esquivarlo!\r\n\r\n`;
+      } else {
+        // ---------------------------------------------
+        // CÁLCULO DE DAÑO NORMAL (Si no esquiva)
+        // ---------------------------------------------
+        let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+        if (danioBase < 12) {
+          danioBase = Math.floor(Math.random() * 8) + 12;
+        }
+
+        const esCritico = Math.random() < 0.15;
+        if (esCritico) danioBase = Math.floor(danioBase * 1.5);
+
+        defensor.hp -= danioBase;
+        if (defensor.hp < 0) defensor.hp = 0;
+
+        cronica +=
+          `• 💥 *${atacante.nombre}* arremete con fuerza.\r\n` +
+          `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}Genera *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
+          `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;
       }
-
-      const esCritico = Math.random() < 0.15;
-      if (esCritico) danioBase = Math.floor(danioBase * 1.5);
-
-      defensor.hp -= danioBase;
-      if (defensor.hp < 0) defensor.hp = 0;
-
-      cronica +=
-        `• 💥 *${atacante.nombre}* arremete con fuerza.\r\n` +
-        `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}Genera *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
-        `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;
 
       turnoJugador = !turnoJugador;
     }
