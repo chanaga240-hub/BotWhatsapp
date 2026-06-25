@@ -30,17 +30,19 @@ class BotManager extends EventEmitter {
   }
   
   async lanzarSalvajeEnGrupos() {
-    const { consultarPokemon, getImagen, getNombreEspanol, randomPokemonId } = require('./pokeapi');
+    const { consultarPokemon, getImagen, getNombreEspanol, randomPokemonId, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
 
     for (const groupId of this.GRUPOS_PERMITIDOS) {
       try {
         const data = await consultarPokemon(randomPokemonId());
         const nombre = await getNombreEspanol(data);
         const urlImagen = getImagen(data);
+        const captureRate = await getCaptureRate(data);
+        const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
         global.pokemonSalvajeActivo = { id: data.id, nombre: nombre };
 
-        const mensaje = `🕒 *¡ALERTA DE POKÉMON SALVAJE!* 🕒\n\n⚠️ Un *${nombre}* salvaje ha aparecido en el grupo.\n¡Atápalo antes de que escape con #capture!`;
+        const mensaje = `🕒 *¡ALERTA DE POKÉMON SALVAJE!* 🕒\n\n⚠️ Un *${nombre}* salvaje ha aparecido en el grupo.\n📊 *Dificultad de captura:* ${Math.round(probabilidadExito)}%\n\n¡Atápalo antes de que escape con #capture!`;
         
         await this.client.sendMessage(groupId, mensaje);
         
@@ -246,7 +248,7 @@ class BotManager extends EventEmitter {
           await configuracionService.actualizarUltimoEnvio('Envio_Pokemon_Salvaje');
 
           // 3. Ejecutamos la lógica de generación del Pokémon salvaje
-          const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol, randomPokemonId } = require('./pokeapi');
+          const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol, randomPokemonId, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
 
           try {
             const randomId = randomPokemonId();
@@ -256,6 +258,9 @@ class BotManager extends EventEmitter {
               getNombreEspanol(data),
               Promise.resolve(getTiposEspanol(data)),
             ]);
+
+            const captureRate = await getCaptureRate(data);
+            const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
             global.pokemonSalvajeActivo = { id: data.id, nombre: nombre };
 
@@ -275,7 +280,8 @@ class BotManager extends EventEmitter {
               `📡 _Invocado por el entrenador: ${usuario.nombre_whatsapp}_\r\n` +
               `──────────────────────\r\n\r\n` +
               `👤 *Nombre:* _${nombre}_\r\n` +
-              `🏷️ *Tipo:* [ *${tipos}* ]\r\n\r\n` +
+              `🏷️ *Tipo:* [ *${tipos}* ]\r\n` +
+              `📊 *Dificultad de captura:* ${Math.round(probabilidadExito)}%\r\n\r\n` +
               `⚔️ *ESTADÍSTICAS BASE FILTRADAS*\r\n` +
               `${estadisticas}\r\n\r\n` +
               `¡Intenten atraparlo antes de que escape usando:\r\n` +
@@ -326,13 +332,18 @@ class BotManager extends EventEmitter {
 
             this.log(`[Bot] Pokémon liberado en BD: id=${liberado.id} pokemon_id=${liberado.pokemon_id}`, 'info');
 
-            const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol } = require('./pokeapi');
+            const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
             let dataApi = null;
+            let captureRate = 45;
             try { dataApi = await consultarPokemon(liberado.pokemon_id); } catch (err) { dataApi = null; }
+            if (dataApi) {
+              try { captureRate = await getCaptureRate(dataApi); } catch (err) { captureRate = 45; }
+            }
 
             const nombreMostrar = liberado.nombre || (dataApi ? await getNombreEspanol(dataApi) : `#${liberado.pokemon_id}`);
             const tipos = dataApi ? getTiposEspanol(dataApi) : null;
             const urlImagen = dataApi ? getImagen(dataApi) : null;
+            const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
             global.pokemonSalvajeActivo = {
               id: liberado.pokemon_id,
@@ -348,7 +359,8 @@ class BotManager extends EventEmitter {
               `👤 *Liberado por:* ${usuario.nombre_whatsapp}\n` +
               `👾 *Especie:* ${nombreMostrar} (Nº ${liberado.pokemon_id})\n` +
               (tipos ? `🏷️ *Tipo:* [ *${tipos}* ]\n` : '') +
-              `🔢 *Nivel:* ${liberado.nivel || 1} · *EXP:* ${liberado.experiencia || 0}\n\n` +
+              `� *Dificultad de captura:* ${Math.round(probabilidadExito)}%\n` +
+              `�🔢 *Nivel:* ${liberado.nivel || 1} · *EXP:* ${liberado.experiencia || 0}\n\n` +
               `¡Este Pokémon ha quedado salvaje en los grupos permitidos. Intenta atraparlo con:\n👉 *#capture*`;
 
             for (const groupId of this.GRUPOS_PERMITIDOS) {
@@ -423,26 +435,47 @@ class BotManager extends EventEmitter {
             return await msg.reply('🎒 *¡No te quedan Pokéballs!* Compra más en la tienda o espera tu regalo diario.');
           }
 
-          const exito = Math.random() < 0.20; 
-
-          if (exito) {
-            const nombrePokemon = pokemonSalvajeActivo.nombre;
-            const idPokemon = pokemonSalvajeActivo.id;
-
-            // Si el salvaje fue liberado por un usuario, preservamos nivel/experiencia al capturarlo
-            const nivelProp = pokemonSalvajeActivo.nivel || null;
-            const expProp = pokemonSalvajeActivo.experiencia || null;
-            const guardado = await pokemonService.registrarCaptura(usuario.id, idPokemon, nombrePokemon, nivelProp, expProp);
-
-            if (guardado) {
-              global.pokemonSalvajeActivo = null; 
-              return await msg.reply(`🎉 ¡Impresionante! Has atrapado a **${nombrePokemon}** (Nº ${idPokemon}) 🌟.\n\nSe ha guardado en tu inventario y gastaste 1 Pokéball (Te quedan: ${usuario.pokeballs - 1}).`);
-            } else {
-              return await msg.reply('⚠️ Error al guardar tu captura. Inténtalo de nuevo.');
+          try {
+            // Obtener datos del Pokémon para calcular probabilidad dinámica
+            const { consultarPokemon: pokeConsulta, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
+            let dataPokemon = null;
+            let captureRate = 45; // Default si no se puede obtener
+            
+            try {
+              dataPokemon = await pokeConsulta(pokemonSalvajeActivo.id);
+              captureRate = await getCaptureRate(dataPokemon);
+            } catch (err) {
+              this.log(`[Bot] Advertencia: No se pudo obtener capture_rate de ${pokemonSalvajeActivo.nombre}, usando default.`, 'warn');
             }
-          } else {
-            await pokemonService.restarPokeball(usuario.id);
-            return await msg.reply(`💨 El Pokémon se movió bruscamente y la Pokéball falló. ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
+
+            // Calcular probabilidad según fórmula: (capture_rate / 255 × 80) + 5
+            const probabilidadExito = calcularProbabilidadCaptura(captureRate) / 100;
+            const exito = Math.random() < probabilidadExito;
+
+            if (exito) {
+              const nombrePokemon = pokemonSalvajeActivo.nombre;
+              const idPokemon = pokemonSalvajeActivo.id;
+
+              // Si el salvaje fue liberado por un usuario, preservamos nivel/experiencia al capturarlo
+              const nivelProp = pokemonSalvajeActivo.nivel || null;
+              const expProp = pokemonSalvajeActivo.experiencia || null;
+              const guardado = await pokemonService.registrarCaptura(usuario.id, idPokemon, nombrePokemon, nivelProp, expProp);
+
+              if (guardado) {
+                global.pokemonSalvajeActivo = null;
+                const porcentajeExito = Math.round(probabilidadExito * 100);
+                return await msg.reply(`🎉 ¡Impresionante! Has atrapado a **${nombrePokemon}** (Nº ${idPokemon}) 🌟.\n\nTenía un ratio de captura de ${porcentajeExito}%. ¡Tuviste suerte!\n\nSe ha guardado en tu inventario y gastaste 1 Pokéball (Te quedan: ${usuario.pokeballs - 1}).`);
+              } else {
+                return await msg.reply('⚠️ Error al guardar tu captura. Inténtalo de nuevo.');
+              }
+            } else {
+              await pokemonService.restarPokeball(usuario.id);
+              const porcentajeExito = Math.round(probabilidadExito * 100);
+              return await msg.reply(`💨 El Pokémon se movió bruscamente y la Pokéball falló. (Ratio: ${porcentajeExito}%) ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
+            }
+          } catch (err) {
+            this.log(`Error en #capture: ${err.message}`, 'error');
+            return await msg.reply('⚠️ Ocurrió un error al procesar la captura. Inténtalo de nuevo.');
           }
         }
 

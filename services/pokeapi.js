@@ -142,6 +142,34 @@ function getAudioGrito(pokemon) {
   return pokemon.cries?.latest || pokemon.cries?.legacy || null;
 }
 
+/**
+ * Obtiene el capture_rate desde la API de pokemon-species.
+ * Retorna un número entre 1 y 255.
+ * Si falla, retorna 45 (promedio aproximado).
+ */
+async function getCaptureRate(pokemon) {
+  const speciesUrl = pokemon.species?.url;
+  if (!speciesUrl) {
+    return 45; // Default aproximado si no hay URL de species
+  }
+
+  try {
+    const speciesData = await fetchJson(speciesUrl);
+    return speciesData.capture_rate ?? 45;
+  } catch {
+    return 45; // Default si la consulta falla
+  }
+}
+
+/**
+ * Calcula la probabilidad de captura basada en el capture_rate.
+ * Fórmula: (capture_rate / 255 × 80) + 5
+ * Retorna un número entre ~5% (legendarios) y ~85% (comunes).
+ */
+function calcularProbabilidadCaptura(captureRate) {
+  return (captureRate / 255 * 80) + 5;
+}
+
 function randomPokemonId() {
   return Math.floor(Math.random() * 1025) + 1;
 }
@@ -156,4 +184,6 @@ module.exports = {
   randomPokemonId,
   formatName,
   getAudioGrito,
+  getCaptureRate,
+  calcularProbabilidadCaptura,
 };
