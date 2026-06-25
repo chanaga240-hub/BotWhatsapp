@@ -71,14 +71,15 @@ async function obtenerPokedex(whatsappId) {
      */
     async function verificarYObtenerPokemon(whatsappId, nombrePokemon) {
         try {
-        const [rows] = await db.execute(
-            `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel, pa.experiencia, pa.fecha_entrenamiento
-            FROM pokemon_atrapados pa
-            JOIN usuarios u ON pa.usuario_id = u.id
-            WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
-            LIMIT 1`,
-            [whatsappId, nombrePokemon.trim()]
-        );
+      const [rows] = await db.execute(
+        `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel, pa.experiencia, pa.fecha_entrenamiento,
+        pa.fecha_ultimo_combate, pa.combates
+        FROM pokemon_atrapados pa
+        JOIN usuarios u ON pa.usuario_id = u.id
+        WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
+        LIMIT 1`,
+        [whatsappId, nombrePokemon.trim()]
+      );
         return rows.length > 0 ? rows[0] : null;
         } catch (error) {
         console.error('Error al verificar Pokémon de la Pokedex:', error);
@@ -146,11 +147,28 @@ async function entrenarPokemon(whatsappId, nombrePokemon) {
   }
 }
 
+/**
+ * Marca que un Pokémon ha participado en un combate: actualiza fecha_ultimo_combate y suma 1 a combates
+ */
+async function registrarCombate(pokemonAtrapadoId) {
+  try {
+    await db.execute(
+      'UPDATE pokemon_atrapados SET fecha_ultimo_combate = NOW(), combates = IFNULL(combates, 0) + 1 WHERE id = ?',
+      [pokemonAtrapadoId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error al registrar combate del Pokémon:', error);
+    return false;
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
   obtenerPokedex,
   verificarYObtenerPokemon,
   contarCapturas,
-  entrenarPokemon
+  entrenarPokemon,
+  registrarCombate
 };

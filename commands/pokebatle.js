@@ -56,6 +56,24 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply(`❌ No tienes a ningún *${nombrePokemonBuscado}* registrado en tu Pokédex.`);
     }
 
+    // Verificar cooldown por combate (5 minutos)
+    try {
+      const cooldownMs = 5 * 60 * 1000;
+      if (pokeInventarioRetador.fecha_ultimo_combate) {
+        const ultima = new Date(pokeInventarioRetador.fecha_ultimo_combate);
+        const ahora = new Date();
+        const diff = ahora - ultima;
+        if (diff < cooldownMs) {
+          const restanteMs = cooldownMs - diff;
+          const minutos = Math.floor(restanteMs / 60000);
+          const segundos = Math.floor((restanteMs % 60000) / 1000);
+          return await msg.reply(`⏳ Tu *${pokeInventarioRetador.nombre}* está en recuperación tras un combate. Tiempo restante: ${minutos}m ${segundos}s.`);
+        }
+      }
+    } catch (e) {
+      console.error('Error comprobando cooldown del Pokémon retador:', e);
+    }
+
     const nombreRetadorText = getNombreRemitente(msg);
     const nombreRivalText = contactoRival.pushname || contactoRival.name || 'Entrenador';
 
@@ -105,6 +123,38 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     desafiosPendientes.delete(idRival); 
 
     await msg.reply(`⏳ ¡Desafío aceptado! Preparando el campo de batalla para *${desafio.pokemonRetador.nombre}* vs *${pokeInventarioRival.nombre}*...`);
+
+    // Verificar cooldowns para ambos Pokémon (retador y rival)
+    try {
+      const cooldownMs = 5 * 60 * 1000;
+      // Re-consultar el Pokémon del retador en base de datos (podría haber cambiado)
+      const pokeRetadorActual = await pokemonService.verificarYObtenerPokemon(desafio.idRetador, desafio.pokemonRetador.nombre);
+      if (pokeRetadorActual && pokeRetadorActual.fecha_ultimo_combate) {
+        const ultima = new Date(pokeRetadorActual.fecha_ultimo_combate);
+        const ahora = new Date();
+        const diff = ahora - ultima;
+        if (diff < cooldownMs) {
+          const restanteMs = cooldownMs - diff;
+          const minutos = Math.floor(restanteMs / 60000);
+          const segundos = Math.floor((restanteMs % 60000) / 1000);
+          return await msg.reply(`⏳ El Pokémon del retador (*${pokeRetadorActual.nombre}*) está en recuperación. Tiempo restante: ${minutos}m ${segundos}s. No se puede aceptar el combate ahora.`);
+        }
+      }
+
+      if (pokeInventarioRival.fecha_ultimo_combate) {
+        const ultimaR = new Date(pokeInventarioRival.fecha_ultimo_combate);
+        const ahoraR = new Date();
+        const diffR = ahoraR - ultimaR;
+        if (diffR < cooldownMs) {
+          const restanteMs = cooldownMs - diffR;
+          const minutos = Math.floor(restanteMs / 60000);
+          const segundos = Math.floor((restanteMs % 60000) / 1000);
+          return await msg.reply(`⏳ Tu *${pokeInventarioRival.nombre}* está en recuperación. Tiempo restante: ${minutos}m ${segundos}s. No puedes aceptar el combate.`);
+        }
+      }
+    } catch (e) {
+      console.error('Error comprobando cooldowns en aceptación:', e);
+    }
 
     const [pokeJugador, pokeRival] = await Promise.all([
       consultarPokemon(desafio.pokemonRetador.pokemon_id),
@@ -220,6 +270,16 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       { label: `👤 ${desafio.nombreRetadorText}: ${p1.nombre}`, url: imgJugador, stickerName: p1.nombre },
       { label: `🎯 ${desafio.nombreRivalText}: ${p2.nombre}`, url: imgRival, stickerName: p2.nombre },
     ].filter((item) => item.url);
+
+    // Registrar que ambos Pokémon participaron en un combate (fecha + incremento de combates)
+    try {
+      const promesas = [];
+      if (desafio.pokemonRetador && desafio.pokemonRetador.id) promesas.push(pokemonService.registrarCombate(desafio.pokemonRetador.id));
+      if (pokeInventarioRival && pokeInventarioRival.id) promesas.push(pokemonService.registrarCombate(pokeInventarioRival.id));
+      await Promise.all(promesas);
+    } catch (e) {
+      console.error('Error registrando combates en BD:', e);
+    }
 
     await replyWithLabeledStickers(msg, cronica, labeledStickers);
 
