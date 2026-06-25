@@ -10,9 +10,10 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon) {
     await connection.beginTransaction();
 
     // 1. Guardar el Pokémon en el inventario
+    // Insertando nivel y experiencia si se proporcionan (mantener compatibilidad con llamadas antiguas)
     await connection.execute(
-      'INSERT INTO pokemon_atrapados (usuario_id, pokemon_id, nombre) VALUES (?, ?, ?)',
-      [usuarioId, pokemonId, nombrePokemon]
+      'INSERT INTO pokemon_atrapados (usuario_id, pokemon_id, nombre, nivel, experiencia) VALUES (?, ?, ?, ?, ?)',
+      [usuarioId, pokemonId, nombrePokemon, arguments[3] || null, arguments[4] || null]
     );
 
     // 2. Restar una pokébola y actualizar la fecha de "ultima_captura"
@@ -27,6 +28,34 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon) {
     await connection.rollback();
     console.error('Error en la transacción de captura:', error);
     return false;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Libera un Pokémon del usuario: devuelve sus datos y elimina la fila de la BD
+ */
+async function liberarPokemon(pokemonAtrapadoId) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      'SELECT id, usuario_id, pokemon_id, nombre, nivel, experiencia FROM pokemon_atrapados WHERE id = ?',
+      [pokemonAtrapadoId]
+    );
+    if (!rows || rows.length === 0) {
+      await connection.rollback();
+      return null;
+    }
+    const datos = rows[0];
+    await connection.execute('DELETE FROM pokemon_atrapados WHERE id = ?', [pokemonAtrapadoId]);
+    await connection.commit();
+    return datos;
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al liberar Pokémon:', error);
+    return null;
   } finally {
     connection.release();
   }
@@ -170,5 +199,6 @@ module.exports = {
   verificarYObtenerPokemon,
   contarCapturas,
   entrenarPokemon,
-  registrarCombate
+  registrarCombate,
+  liberarPokemon
 };

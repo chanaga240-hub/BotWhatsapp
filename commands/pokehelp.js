@@ -18,6 +18,8 @@ const AYUDA =
   `• *#pokemon*\r\n` +
   `  Información detallada de un Pokémon aleatorio.\r\n` +
   `• *#pokemon [nombre]*\r\n` +
+    `• *#pokerealease [nombre]*\r\n` +
+    `  Libera un Pokémon de tu Pokédex y lo convierte en un Pokémon salvaje en los grupos permitidos.\r\n` +
   `  Busca un Pokémon por su nombre (ej: _#pokemon charizard_).\r\n` +
   `• *#capture*\r\n` +
   `  Intenta atrapar al Pokémon salvaje activo (20% éxito) 💥.\r\n\r\n` +
