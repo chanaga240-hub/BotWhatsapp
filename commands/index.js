@@ -60,12 +60,12 @@ async function handleCommand(msg) {
   }
 
   if (textoMinuscula.startsWith('#poketrain')) {
+    // Extraemos lo que venga después de '#poketrain' (puede ser un nombre o vacío)
     const nombrePokemon = textoCompleto.substring(10).trim();
-    if (!nombrePokemon) {
-      return await msg.reply('❌ Debes indicar el nombre del Pokémon que quieres entrenar.\n👉 Ejemplo: #poketrain Marshadow');
-    }
 
     console.log('[!] Comando de entrenamiento detectado.');
+    
+    // Se lo enviamos directo a la función, ya que ella sabe qué hacer si viene vacío
     await handlePokeTrain(msg, nombrePokemon);
     return;
   }

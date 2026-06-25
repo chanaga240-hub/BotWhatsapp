@@ -223,6 +223,26 @@ async function registrarCombate(pokemonAtrapadoId) {
   }
 }
 
+/**
+ * Obtiene todos los Pokémon de un usuario con sus niveles y fechas de entrenamiento.
+ */
+async function obtenerPokemonParaEntrenamiento(whatsappId) {
+  try {
+    const [rows] = await db.execute(
+      `SELECT pa.id, pa.nombre, pa.nivel, pa.fecha_entrenamiento
+       FROM pokemon_atrapados pa
+       JOIN usuarios u ON pa.usuario_id = u.id
+       WHERE u.whatsapp_id = ?
+       ORDER BY pa.fecha_entrenamiento ASC, pa.nombre ASC`,
+      [whatsappId]
+    );
+    return rows;
+  } catch (error) {
+    console.error('Error al obtener Pokémon para entrenamiento:', error);
+    return [];
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -232,5 +252,6 @@ module.exports = {
   entrenarPokemon,
   registrarCombate,
   liberarPokemon,
-  transferirPokemon
+  transferirPokemon,
+  obtenerPokemonParaEntrenamiento
 };
