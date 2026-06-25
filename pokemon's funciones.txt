@@ -1,0 +1,548 @@
+// pokemon's 
+
+
+
+// 1. Limpieza total de observadores previos
+if (window.pokemonObserver) window.pokemonObserver.disconnect();
+if (window.teamObserver) window.teamObserver.disconnect();
+
+window.ultimoBloqueoPokemon = 0;
+window.ultimoBloqueoTeam = 0;
+
+// FUNCIÓN AUXILIAR: Consulta un Pokémon usando el puente iframe (acepta ID o Nombre)
+async function consultarPokemon(param) {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    try {
+        const response = await iframe.contentWindow.fetch(`https://pokeapi.co/api/v2/pokemon/${String(param).toLowerCase().trim()}`);
+        if (!response.ok) throw new Error('No se encontró el Pokémon');
+        const data = await response.json();
+        document.body.removeChild(iframe);
+        return data;
+    } catch (e) {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        throw e;
+    }
+}
+
+// FUNCIÓN AUXILIAR: Fuerza la acción de "Responder" (Citar) sobre un nodo de mensaje específico
+function forzarRespuesta(messageNode) {
+    // WhatsApp Web activa la respuesta rápida haciendo doble clic sobre el contenedor del mensaje
+    const doubleClickEvent = new MouseEvent('dblclick', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+    });
+    messageNode.dispatchEvent(doubleClickEvent);
+}
+
+// FUNCIÓN AUXILIAR: Escribe y envía en WhatsApp Web vinculando la cita
+function inyectarYEnviar(mensaje, logIdentificador, delay = 2000) {
+    const mainChat = document.querySelector('#main');
+    if (!mainChat) return;
+
+    const textBox = mainChat.querySelector('div[contenteditable="true"]');
+    if (!textBox) return;
+
+    textBox.focus();
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    document.execCommand('insertText', false, mensaje);
+
+    setTimeout(() => {
+        const enterEvent = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            key: 'Enter',
+            keyCode: 13,
+            which: 13
+        });
+        textBox.dispatchEvent(enterEvent);
+        console.log(`[Bot] Enviado: ${logIdentificador}`);
+    }, delay);
+}
+
+// FUNCIÓN 1: Un solo Pokémon (Soporta Aleatorio o Búsqueda por Nombre)
+async function enviarPokemon(busqueda = null, messageNode = null) {
+    try {
+        let data;
+        if (busqueda) {
+            console.log(`[${new Date().toLocaleTimeString()}] Buscando Pokémon por nombre: ${busqueda}...`);
+            try {
+                data = await consultarPokemon(busqueda);
+            } catch (err) {
+                // Si no se encuentra el Pokémon por nombre, responder informando el error
+                if (messageNode) forzarRespuesta(messageNode);
+                inyectarYEnviar(`❌ *Error:* No logré encontrar a un Pokémon llamado _"${busqueda}"_. ¡Revisa la ortografía!`, "ERROR_BUSQUEDA", 1000);
+                return;
+            }
+        } else {
+            const randomId = Math.floor(Math.random() * 1025) + 1;
+            data = await consultarPokemon(randomId);
+        }
+
+        const nombre = data.name.toUpperCase();
+        const idFormateado = String(data.id).padStart(3, '0');
+        const tipos = data.types.map(t => t.type.name.toUpperCase()).join(' / ');
+        const habilidades = data.abilities.map(a => a.ability.name).join(', ');
+        const altura = (data.height / 10).toFixed(1);
+        const peso = (data.weight / 10).toFixed(1);
+
+        const statsMap = { 'hp': '❤️ Vida', 'attack': '⚔️ Ataque', 'defense': '🛡️ Defensa', 'speed': '⚡ Velocidad' };
+        const estadisticas = data.stats
+            .filter(s => statsMap[s.stat.name])
+            .map(s => `${statsMap[s.stat.name]}: *${s.base_stat}*`)
+            .join('\r\n');
+
+        const urlImagen = data.sprites.other['official-artwork'].front_default || data.sprites.front_default;
+
+        const mensaje = `✨ *¡POKÉMON AVISTADO!* ✨\r\n` +
+                        `──────────────────────\r\n\r\n` +
+                        `🆔 *Nº Pokedex:* #${idFormateado}\r\n\r\n` +
+                        `👤 *Nombre:* _${nombre}_\r\n\r\n` +
+                        `🏷️ *Tipo:* [ *${tipos}* ]\r\n\r\n` +
+                        `📊 *DATOS FÍSICOS*\r\n` +
+                        `• *Altura:* ${altura} m\r\n` +
+                        `• *Peso:* ${peso} kg\r\n` +
+                        `• *Habilidades:* _${habilidades}_\r\n\r\n` +
+                        `⚔️ *ESTADÍSTICAS BASE*\r\n` +
+                        `${estadisticas}\r\n\r\n` +
+                        `──────────────────────\r\n` +
+                        `📸 *AVISTAMIENTO HD:* \r\n${urlImagen}`;
+
+        // Citar el mensaje original si está disponible
+        if (messageNode) forzarRespuesta(messageNode);
+        
+        inyectarYEnviar(mensaje, nombre, 2000);
+    } catch (error) {
+        console.error('Error en enviarPokemon:', error);
+    }
+}
+
+// FUNCIÓN 2: Equipo de 6 Pokémon compacto
+async function enviarEquipoAleatorio(messageNode = null) {
+    try {
+        console.log(`[${new Date().toLocaleTimeString()}] Generando escuadra de 6 Pokémon...`);
+        let equipoMensaje = `🔥 *¡TU EQUIPO POKÉMON (6) !* 🔥\r\n` +
+                            `──────────────────────\r\n\r\n`;
+
+        const promesas = Array.from({ length: 6 }, () => {
+            const randomId = Math.floor(Math.random() * 1025) + 1;
+            return consultarPokemon(randomId);
+        });
+
+        const listaPokemon = await Promise.all(promesas);
+
+        listaPokemon.forEach((data, index) => {
+            const nombre = data.name.toUpperCase();
+            const tipos = data.types.map(t => t.type.name.toUpperCase()).join(' / ');
+            const urlImagen = data.sprites.other['official-artwork'].front_default || data.sprites.front_default;
+
+            equipoMensaje += `*Slot #${index + 1}* 🛡️\r\n` +
+                             `• *Nombre:* ${nombre}\r\n` +
+                             `• *Tipo:* [ _${tipos}_ ]\r\n` +
+                             `📸 *Imagen:* ${urlImagen}\r\n\r\n`;
+        });
+
+        equipoMensaje += `──────────────────────`;
+
+        if (messageNode) forzarRespuesta(messageNode);
+
+        inyectarYEnviar(equipoMensaje, "EQUIPO DE 6", 1500);
+    } catch (error) {
+        console.error('Error en #poketeam:', error);
+    }
+}
+
+// OBSERVADOR CENTRAL: Escucha los comandos, filtra las respuestas cruzadas y ejecuta con citas
+function iniciarCentralComandos() {
+    const mainChat = document.querySelector('#main');
+    if (!mainChat) {
+        console.error("Abre un chat antes de ejecutar el código.");
+        return;
+    }
+
+    const chatContainer = mainChat.querySelector('.copyable-area');
+    if (!chatContainer) return;
+
+    window.pokemonObserver = new MutationObserver((mutations) => {
+        const ahora = Date.now();
+
+        for (let mutation of mutations) {
+            if (mutation.addedNodes.length) {
+                for (let node of mutation.addedNodes) {
+                    
+                    // Si el nuevo nodo ya contiene una cita interna, lo ignoramos para no generar bucles
+                    if (node.querySelector?.('[data-testid="quoted-message"]') || node.querySelector?.('.quoted-container')) {
+                        continue; 
+                    }
+
+                    const selectableText = node.querySelector?.('.selectable-text');
+                    if (selectableText) {
+                        const textoCompleto = selectableText.innerText.trim();
+                        const textoMinuscula = textoCompleto.toLowerCase();
+                        
+                        // Evaluar comandos basados en prefijos alternativos
+                        if (textoMinuscula.startsWith('#pokemon')) {
+                            if (ahora - window.ultimoBloqueoPokemon < 4000) return;
+                            window.ultimoBloqueoPokemon = ahora;
+
+                            // Extraer el argumento (por si buscaron un nombre específico)
+                            const argumentos = textoCompleto.substring(8).trim(); // Corta después de '#pokemon'
+                            
+                            if (argumentos.length > 0) {
+                                console.log(`[!] Comando búsqueda por nombre detectado enfocado.`);
+                                enviarPokemon(argumentos, node); // Se pasa el término de búsqueda y el nodo del mensaje
+                            } else {
+                                console.log(`[!] Comando individual aleatorio detectado enfocado.`);
+                                enviarPokemon(null, node); // Pasa null para activar el ID aleatorio
+                            }
+                            return;
+                        }
+                        
+                        if (textoMinuscula === '#poketeam') {
+                            if (ahora - window.ultimoBloqueoTeam < 4000) return;
+                            window.ultimoBloqueoTeam = ahora;
+                            console.log(`[!] Comando de equipo (6) detectado enfocado.`);
+                            enviarEquipoAleatorio(node);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    window.pokemonObserver.observe(chatContainer, { childList: true, subtree: true });
+    console.log("🟢 Central de Comandos actualizada y lista.");
+    console.log("   -> Filtro de citas cruzadas: ACTIVADO.");
+    console.log("   -> Soporte de búsqueda exacto: '#pokemon pikachu' o '#pokemon gengar'");
+    console.log("   -> Sistema de respuestas por mención directa: ACTIVADO.");
+}
+
+iniciarCentralComandos();
+
+
+
+
+
+
+
+
+
+
+
+// batalla pokemon 
+
+
+// 1. Limpieza total de observadores previos
+if (window.pokemonObserver) window.pokemonObserver.disconnect();
+if (window.teamObserver) window.teamObserver.disconnect();
+
+window.ultimoBloqueoPokemon = 0;
+window.ultimoBloqueoTeam = 0;
+window.ultimoBloqueoBatalla = 0;
+
+// FUNCIÓN AUXILIAR: Consulta un Pokémon usando el puente iframe (acepta ID o Nombre)
+async function consultarPokemon(param) {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    try {
+        const response = await iframe.contentWindow.fetch(`https://pokeapi.co/api/v2/pokemon/${String(param).toLowerCase().trim()}`);
+        if (!response.ok) throw new Error('No se encontró el Pokémon');
+        const data = await response.json();
+        document.body.removeChild(iframe);
+        return data;
+    } catch (e) {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        throw e;
+    }
+}
+
+// FUNCIÓN AUXILIAR: Fuerza la acción de "Responder" (Citar) sobre un nodo de mensaje específico
+function forzarRespuesta(messageNode) {
+    const doubleClickEvent = new MouseEvent('dblclick', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+    });
+    messageNode.dispatchEvent(doubleClickEvent);
+}
+
+// FUNCIÓN AUXILIAR: Escribe y envía en WhatsApp Web vinculando la cita
+function inyectarYEnviar(mensaje, logIdentificador, delay = 2000) {
+    const mainChat = document.querySelector('#main');
+    if (!mainChat) return;
+
+    const textBox = mainChat.querySelector('div[contenteditable="true"]');
+    if (!textBox) return;
+
+    textBox.focus();
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    document.execCommand('insertText', false, mensaje);
+
+    setTimeout(() => {
+        const enterEvent = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            key: 'Enter',
+            keyCode: 13,
+            which: 13
+        });
+        textBox.dispatchEvent(enterEvent);
+        console.log(`[Bot] Enviado: ${logIdentificador}`);
+    }, delay);
+}
+
+// FUNCIÓN 1: Un solo Pokémon (Soporta Aleatorio o Búsqueda por Nombre)
+async function enviarPokemon(busqueda = null, messageNode = null) {
+    try {
+        let data;
+        if (busqueda) {
+            console.log(`[${new Date().toLocaleTimeString()}] Buscando Pokémon por nombre: ${busqueda}...`);
+            try {
+                data = await consultarPokemon(busqueda);
+            } catch (err) {
+                if (messageNode) forzarRespuesta(messageNode);
+                inyectarYEnviar(`❌ *Error:* No logré encontrar a un Pokémon llamado _"${busqueda}"_. ¡Revisa la ortografía!`, "ERROR_BUSQUEDA", 1000);
+                return;
+            }
+        } else {
+            const randomId = Math.floor(Math.random() * 1025) + 1;
+            data = await consultarPokemon(randomId);
+        }
+
+        const nombre = data.name.toUpperCase();
+        const idFormateado = String(data.id).padStart(3, '0');
+        const tipos = data.types.map(t => t.type.name.toUpperCase()).join(' / ');
+        const habilidades = data.abilities.map(a => a.ability.name).join(', ');
+        const altura = (data.height / 10).toFixed(1);
+        const peso = (data.weight / 10).toFixed(1);
+
+        const statsMap = { 'hp': '❤️ Vida', 'attack': '⚔️ Ataque', 'defense': '🛡️ Defensa', 'speed': '⚡ Velocidad' };
+        const estadisticas = data.stats
+            .filter(s => statsMap[s.stat.name])
+            .map(s => `${statsMap[s.stat.name]}: *${s.base_stat}*`)
+            .join('\r\n');
+
+        const urlImagen = data.sprites.other['official-artwork'].front_default || data.sprites.front_default;
+
+        const mensaje = `✨ *¡POKÉMON AVISTADO!* ✨\r\n` +
+                        `──────────────────────\r\n\r\n` +
+                        `🆔 *Nº Pokedex:* #${idFormateado}\r\n\r\n` +
+                        `👤 *Nombre:* _${nombre}_\r\n\r\n` +
+                        `🏷️ *Tipo:* [ *${tipos}* ]\r\n\r\n` +
+                        `📊 *DATOS FÍSICOS*\r\n` +
+                        `• *Altura:* ${altura} m\r\n` +
+                        `• *Peso:* ${peso} kg\r\n` +
+                        `• *Habilidades:* _${habilidades}_\r\n\r\n` +
+                        `⚔️ *ESTADÍSTICAS BASE*\r\n` +
+                        `${estadisticas}\r\n\r\n` +
+                        `──────────────────────\r\n` +
+                        `📸 *AVISTAMIENTO HD:* \r\n${urlImagen}`;
+
+        if (messageNode) forzarRespuesta(messageNode);
+        inyectarYEnviar(mensaje, nombre, 2000);
+    } catch (error) {
+        console.error('Error en enviarPokemon:', error);
+    }
+}
+
+// FUNCIÓN 2: Equipo de 6 Pokémon compacto
+async function enviarEquipoAleatorio(messageNode = null) {
+    try {
+        console.log(`[${new Date().toLocaleTimeString()}] Generando escuadra de 6 Pokémon...`);
+        let equipoMensaje = `🔥 *¡TU EQUIPO POKÉMON (6) !* 🔥\r\n` +
+                            `──────────────────────\r\n\r\n`;
+
+        const promesas = Array.from({ length: 6 }, () => {
+            const randomId = Math.floor(Math.random() * 1025) + 1;
+            return consultarPokemon(randomId);
+        });
+
+        const listaPokemon = await Promise.all(promesas);
+
+        listaPokemon.forEach((data, index) => {
+            const nombre = data.name.toUpperCase();
+            const tipos = data.types.map(t => t.type.name.toUpperCase()).join(' / ');
+            const urlImagen = data.sprites.other['official-artwork'].front_default || data.sprites.front_default;
+
+            equipoMensaje += `*Slot #${index + 1}* 🛡️\r\n` +
+                             `• *Nombre:* ${nombre}\r\n` +
+                             `• *Tipo:* [ _${tipos}_ ]\r\n` +
+                             `📸 *Imagen:* ${urlImagen}\r\n\r\n`;
+        });
+
+        equipoMensaje += `──────────────────────`;
+
+        if (messageNode) forzarRespuesta(messageNode);
+        inyectarYEnviar(equipoMensaje, "EQUIPO DE 6", 1500);
+    } catch (error) {
+        console.error('Error en #poketeam:', error);
+    }
+}
+
+// FUNCIÓN 3: Sistema de Combate Automatizado (#pokebatle)
+async function iniciarBatallaPokemon(rivalTexto = "@Rival", messageNode = null) {
+    try {
+        console.log(`[${new Date().toLocaleTimeString()}] Iniciando simulación de batalla contra ${rivalTexto}...`);
+        
+        const idJugador = Math.floor(Math.random() * 1025) + 1;
+        const idRival = Math.floor(Math.random() * 1025) + 1;
+        
+        const [pokeJugador, pokeRival] = await Promise.all([
+            consultarPokemon(idJugador),
+            consultarPokemon(idRival)
+        ]);
+
+        const p1Nombre = pokeJugador.name.toUpperCase();
+        const p2Nombre = pokeRival.name.toUpperCase();
+
+        const imgJugador = pokeJugador.sprites.other['official-artwork'].front_default || pokeJugador.sprites.front_default;
+        const imgRival = pokeRival.sprites.other['official-artwork'].front_default || pokeRival.sprites.front_default;
+
+        const getStat = (poke, statName) => poke.stats.find(s => s.stat.name === statName)?.base_stat || 50;
+
+        let p1 = { nombre: p1Nombre, hp: getStat(pokeJugador, 'hp') * 2, atk: getStat(pokeJugador, 'attack'), def: getStat(pokeJugador, 'defense'), vel: getStat(pokeJugador, 'speed') };
+        let p2 = { nombre: p2Nombre, hp: getStat(pokeRival, 'hp') * 2, atk: getStat(pokeRival, 'attack'), def: getStat(pokeRival, 'defense'), vel: getStat(pokeRival, 'speed') };
+        
+        const hpMaxP1 = p1.hp;
+        const hpMaxP2 = p2.hp;
+
+        let cronica = `⚔️ *¡BATALLA POKÉMON ENTRANTE!* ⚔️\r\n` +
+                      `📸 *Versus (Artworks):*\r\n` +
+                      `• Tú (${p1.nombre}): ${imgJugador}\r\n` +
+                      `• ${rivalTexto} (${p2.nombre}): ${imgRival}\r\n` +
+                      `──────────────────────\r\n\r\n` +
+                      `👤 *Tú:* ${p1.nombre} (HP: ${p1.hp} | ATK: ${p1.atk} | DEF: ${p1.def})\r\n` +
+                      `🎯 *${rivalTexto}:* ${p2.nombre} (HP: ${p2.hp} | ATK: ${p2.atk} | DEF: ${p2.def})\r\n` +
+                      `──────────────────────\r\n\r\n`;
+
+        let turnoJugador = p1.vel >= p2.vel;
+        cronica += `⚡ _${turnoJugador ? p1.nombre : p2.nombre} es más rápido y toma la iniciativa._\r\n\r\n`;
+
+        let rondas = 0;
+        while (p1.hp > 0 && p2.hp > 0 && rondas < 6) {
+            rondas++;
+            cronica += `*ROUND ${rondas}* 🥊\r\n`;
+
+            let atacante = turnoJugador ? p1 : p2;
+            let defensor = turnoJugador ? p2 : p1;
+
+            // PARCHEADO: Corrección de typo de 'defenson' a 'defensor' para aplicar mitigación real
+            let danioBase = Math.floor((atacante.atk * 1.4) - (defensor.def * 0.4));
+            
+            // Garantizar un mínimo de daño si la defensa supera ampliamente al ataque
+            if (danioBase < 10) danioBase = Math.floor(Math.random() * 8) + 10;
+            
+            let esCritico = Math.random() < 0.15;
+            if (esCritico) danioBase = Math.floor(danioBase * 1.5);
+
+            defensor.hp -= danioBase;
+            if (defensor.hp < 0) defensor.hp = 0;
+
+            cronica += `• 💥 *${atacante.nombre}* usó un movimiento físico.\r\n` +
+                       `• ${esCritico ? '🎯 _¡Un golpe crítico!_ ' : ''}Le inflige *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
+                       `• 🩸 *${defensor.nombre}* queda con *${defensor.hp} HP*.\r\n\r\n`;
+
+            turnoJugador = !turnoJugador;
+        }
+
+        cronica += `──────────────────────\r\n` +
+                   `🏆 *RESULTADO FINAL:* \r\n`;
+
+        if (p1.hp <= 0 && p2.hp <= 0) {
+            cronica += `💀 Ambos Pokémon cayeron en combate. ¡Es un empate técnico!`;
+        } else if (p1.hp <= 0) {
+            cronica += `👑 ¡El ganador es el *${p2.nombre}* de ${rivalTexto}! 🎒`;
+        } else if (p2.hp <= 0) {
+            cronica += `👑 ¡Tu *${p1.nombre}* ha ganado la batalla con ${p1.hp} HP restantes! 🎉`;
+        } else {
+            let pctP1 = p1.hp / hpMaxP1;
+            let pctP2 = p2.hp / hpMaxP2;
+            let ganadorPorTiempo = pctP1 >= pctP2 ? p1.nombre : p2.nombre;
+            cronica += `⏳ Se agotó el tiempo. ¡*${ganadorPorTiempo}* gana por mayor vitalidad relativa!`;
+        }
+
+        if (messageNode) forzarRespuesta(messageNode);
+        inyectarYEnviar(cronica, "BATALLA SIMULADA", 2000);
+
+    } catch (error) {
+        console.error('Error en simulación de batalla:', error);
+    }
+}
+
+// OBSERVADOR CENTRAL ENFOCADO
+function iniciarCentralComandos() {
+    const mainChat = document.querySelector('#main');
+    if (!mainChat) {
+        console.error("Abre un chat antes de ejecutar el código.");
+        return;
+    }
+
+    const chatContainer = mainChat.querySelector('.copyable-area');
+    if (!chatContainer) return;
+
+    window.pokemonObserver = new MutationObserver((mutations) => {
+        const ahora = Date.now();
+
+        for (let mutation of mutations) {
+            if (mutation.addedNodes.length) {
+                for (let node of mutation.addedNodes) {
+                    
+                    if (node.querySelector?.('[data-testid="quoted-message"]') || node.querySelector?.('.quoted-container')) {
+                        continue; 
+                    }
+
+                    const selectableText = node.querySelector?.('.selectable-text');
+                    if (selectableText) {
+                        const textoCompleto = selectableText.innerText.trim();
+                        const textoMinuscula = textoCompleto.toLowerCase();
+                        
+                        // Evaluar #pokemon
+                        if (textoMinuscula.startsWith('#pokemon')) {
+                            if (ahora - window.ultimoBloqueoPokemon < 4000) return;
+                            window.ultimoBloqueoPokemon = ahora;
+
+                            const argumentos = textoCompleto.substring(8).trim();
+                            if (argumentos.length > 0) {
+                                enviarPokemon(argumentos, node);
+                            } else {
+                                enviarPokemon(null, node);
+                            }
+                            return;
+                        }
+                        
+                        // Evaluar #poketeam
+                        if (textoMinuscula === '#poketeam') {
+                            if (ahora - window.ultimoBloqueoTeam < 4000) return;
+                            window.ultimoBloqueoTeam = ahora;
+                            enviarEquipoAleatorio(node);
+                            return;
+                        }
+
+                        // Evaluar #pokebatle
+                        if (textoMinuscula.startsWith('#pokebatle')) {
+                            if (ahora - window.ultimoBloqueoBatalla < 5000) return;
+                            window.ultimoBloqueoBatalla = ahora;
+
+                            const rival = textoCompleto.substring(10).trim();
+                            const rivalTratado = rival.length > 0 ? rival : "@Rival";
+
+                            iniciarBatallaPokemon(rivalTratado, node);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    window.pokemonObserver.observe(chatContainer, { childList: true, subtree: true });
+    console.log("🟢 Central de Comandos Unificada Activa (Defensa arreglada).");
+}
+
+iniciarCentralComandos();
