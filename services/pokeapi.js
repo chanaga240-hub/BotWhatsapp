@@ -31,8 +31,35 @@ function formatName(name) {
     .join(' ');
 }
 
+function normalizeForApi(param) {
+  if (param === undefined || param === null) return '';
+  const num = String(param).trim();
+  // If it's purely numeric, return as-is
+  if (/^\d+$/.test(num)) return num;
+
+  let s = String(param).toLowerCase().trim();
+
+  // Map gender symbols to explicit suffixes used by the API
+  s = s.replace(/♀/g, '-f').replace(/♂/g, '-m');
+
+  // Remove diacritics (accents)
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Replace spaces with hyphens (API uses hyphens for multi-word names)
+  s = s.replace(/\s+/g, '-');
+
+  // Remove common apostrophes and similar punctuation characters
+  s = s.replace(/[’'`´]/g, '');
+
+  // Keep only a-z, 0-9 and hyphens
+  s = s.replace(/[^a-z0-9-]/g, '');
+
+  return s;
+}
+
 async function consultarPokemon(param) {
-  const url = `${POKEAPI_BASE}/${String(param).toLowerCase().trim()}`;
+  const ident = normalizeForApi(param);
+  const url = `${POKEAPI_BASE}/${ident}`;
   const response = await fetch(url);
 
   if (!response.ok) {

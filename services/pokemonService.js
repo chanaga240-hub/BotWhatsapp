@@ -3,7 +3,7 @@ const db = require('./database');
 /**
  * Registra la captura exitosa de un Pokémon, resta una pokébola y actualiza la fecha de captura.
  */
-async function registrarCaptura(usuarioId, pokemonId, nombrePokemon) {
+async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, experiencia = 0) {
   const connection = await db.getConnection();
   try {
     // Iniciamos una transacción para que si algo falla, no se hagan cambios parciales
@@ -11,9 +11,13 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon) {
 
     // 1. Guardar el Pokémon en el inventario
     // Insertando nivel y experiencia si se proporcionan (mantener compatibilidad con llamadas antiguas)
+    // Aseguramos que los valores por defecto sean nivel=1 y experiencia=0 cuando no se envían
+    const nivelFinal = (nivel === undefined || nivel === null) ? 1 : nivel;
+    const experienciaFinal = (experiencia === undefined || experiencia === null) ? 0 : experiencia;
+
     await connection.execute(
       'INSERT INTO pokemon_atrapados (usuario_id, pokemon_id, nombre, nivel, experiencia) VALUES (?, ?, ?, ?, ?)',
-      [usuarioId, pokemonId, nombrePokemon, arguments[3] || null, arguments[4] || null]
+      [usuarioId, pokemonId, nombrePokemon, nivelFinal, experienciaFinal]
     );
 
     // 2. Restar una pokébola y actualizar la fecha de "ultima_captura"
