@@ -77,14 +77,21 @@ async function handleCommand(msg) {
       mentionIds = mentions.map((m) => m.id && m.id._serialized ? m.id._serialized : '').filter(Boolean);
     }
 
+    // Para #pokestas: requiere mención obligatoria
     if (textoMinuscula.startsWith('#pokestas')) {
       if (mentionIds.length === 0) {
         return await msg.reply('❌ Debes mencionar a un entrenador con @ para ver sus estadísticas.\n👉 Ejemplo: #pokestas @Marco');
       }
       const targetId = mentionIds[0].split('@')[0].split(':')[0];
       await handlePokeStats(msg, targetId);
-    } else {
-      await handlePokeStats(msg, null);
+    } 
+    // Para #pokestats: mención opcional
+    else if (textoMinuscula.startsWith('#pokestats')) {
+      let targetId = null;
+      if (mentionIds.length > 0) {
+        targetId = mentionIds[0].split('@')[0].split(':')[0];
+      }
+      await handlePokeStats(msg, targetId);
     }
     return;
   }
