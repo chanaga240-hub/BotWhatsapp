@@ -184,12 +184,6 @@ function renderLogs() {
     .join('');
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 async function apiPost(path) {
   const res = await fetch(path, { method: 'POST' });
   return res.json();
@@ -214,20 +208,18 @@ btnClearLogs.addEventListener('click', () => {
   renderLogs();
 });
 
-// Busca y deja solo ESTA lógica para los clics
+// Navegación de secciones
 navItems.forEach((item) => {
   item.addEventListener('click', (e) => {
     e.preventDefault();
     navItems.forEach((n) => n.classList.remove('active'));
     item.classList.add('active');
-    
-    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+
+    document.querySelectorAll('section').forEach((s) => s.classList.add('hidden'));
     const targetId = item.getAttribute('href').substring(1);
     const targetSection = document.getElementById(targetId);
-    
     if (targetSection) targetSection.classList.remove('hidden');
-    
-    // Si el usuario hace clic en Entrenadores, cargamos los datos
+
     if (targetId === 'entrenadores') {
       loadTrainers();
     }
@@ -236,70 +228,151 @@ navItems.forEach((item) => {
 
 connectWebSocket();
 
-// Añade esta lógica en app.js
-navItems.forEach((item) => {
-  item.addEventListener('click', (e) => {
-    e.preventDefault();
-    navItems.forEach((n) => n.classList.remove('active'));
-    item.classList.add('active');
-    
-    // Ocultar todos los paneles
-    document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
-    // Mostrar el seleccionado
-    const targetId = item.getAttribute('href').substring(1);
-    document.getElementById(targetId).classList.remove('hidden');
-  });
-});
-
 async function loadTrainers() {
   try {
     const res = await fetch('/api/entrenadores');
     if (!res.ok) throw new Error('Error al obtener entrenadores');
     const data = await res.json();
     const list = document.getElementById('trainerList');
-    
-    if (data.length === 0) {
-      list.innerHTML = '<tr><td colspan="4">No hay entrenadores registrados.</td></tr>';
+    const count = document.getElementById('trainerCount');
+
+    if (!data || data.length === 0) {
+      list.innerHTML = '<div class="trainer-empty">No hay entrenadores registrados.</div>';
+      count.textContent = '0';
       return;
     }
 
-    list.innerHTML = data.map(t => `
-      <tr>
-        <td>${t.nombre_whatsapp}</td>
-        <td>${t.experiencia || 0} EXP</td>
-        <td>${t.cantidad_pokemon || 0}</td>
-        <td><button class="btn btn-ghost" onclick="viewPokedex('${t.id}')">Ver Pokédex</button></td>
-      </tr>
-    `).join('');
+    count.textContent = data.length;
+    list.innerHTML = data
+      .map((t) => `
+        <button class="trainer-card" type="button" data-trainer-id="${t.id}" data-trainer-name="${escapeAttribute(t.nombre_whatsapp)}">
+          <div class="trainer-card-info">
+            <strong>${escapeHtml(t.nombre_whatsapp)}</strong>
+            <span>${t.cantidad_pokemon || 0} Pokémon</span>
+          </div>
+          <div class="trainer-card-meta">
+            <span class="badge">${t.experiencia || 0} EXP</span>
+            <span class="badge badge-soft">Nivel ${t.nivel || 1}</span>
+          </div>
+        </button>
+      `)
+      .join('');
+
+    list.querySelectorAll('.trainer-card').forEach((button) => {
+      button.addEventListener('click', () => {
+        viewPokedex(button.dataset.trainerId, button.dataset.trainerName);
+      });
+    });
   } catch (error) {
     console.error(error);
   }
 }
 
-// NUEVO: Llamar a la función cuando el usuario haga clic en la pestaña "Entrenadores"
-document.querySelector('a[href="#entrenadores"]').addEventListener('click', loadTrainers);
-
-connectWebSocket();
-
-// Función para abrir vista de Pokedex (puedes expandirla luego)
-window.viewPokedex = function(usuarioId) {
-  console.log("Consultando Pokedex del usuario:", usuarioId);
-  alert("Próximamente: Verás el inventario del usuario " + usuarioId);
-  // Aquí podrías hacer otro fetch a una ruta nueva, ej: /api/pokedex/${usuarioId}
-};
-
-// --- CORRECCIÓN DE LA FUNCIÓN ---
-window.viewPokedex = async function(usuarioId) {
+window.viewPokedex = async function(usuarioId, nombre) {
+  const detailPanel = document.getElementById('trainerDetail');
   try {
+    detailPanel.classList.remove('hidden');
+    detailPanel.innerHTML = '<div class="detail-loading">Cargando Pokédex...</div>';
+
     const res = await fetch(`/api/pokedex/${usuarioId}`);
     if (!res.ok) throw new Error('No se pudo cargar la Pokédex');
-    const pokemonList = await res.json();
-    
-    // Mostramos un alert simple por ahora para verificar que los datos llegan
-    alert("Entrenador tiene " + pokemonList.length + " Pokémon registrados.");
-    console.log("Pokédex:", pokemonList);
+    const data = await res.json();
+    const usuario = data.usuario || {};
+    const pokemonList = data.pokedex || [];
+
+    if (!Array.isArray(pokemonList) || pokemonList.length === 0) {
+      detailPanel.innerHTML = `
+        <div class="detail-empty">
+          <p><strong>${escapeHtml(usuario.nombre_whatsapp || nombre || 'Entrenador')}</strong> no tiene Pokémon registrados.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const statNames = {
+      hp: 'HP',
+      attack: 'Attack',
+      defense: 'Defense',
+      'special-attack': 'Sp. Atk',
+      'special-defense': 'Sp. Def',
+      speed: 'Speed',
+    };
+
+    detailPanel.innerHTML = `
+      <div class="trainer-detail-head">
+        <div>
+          <span class="detail-tag">Entrenador</span>
+          <h3>${escapeHtml(usuario.nombre_whatsapp || nombre || 'Entrenador')}</h3>
+          <p>${pokemonList.length} Pokémon en la Pokédex</p>
+        </div>
+        <div class="trainer-detail-stats">
+          <span class="badge">Nivel ${usuario.nivel || 1}</span>
+          <span class="badge">${usuario.experiencia || 0} EXP</span>
+          <span class="badge badge-soft">${usuario.pokeballs || 0} Pokéballs</span>
+        </div>
+      </div>
+      <div class="pokedex-grid">
+        ${pokemonList
+          .map((poke) => `
+            <article class="pokedex-card">
+              <div class="pokedex-card-img">
+                <img src="${poke.imagen || 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'}" alt="${escapeHtml(poke.nombre)}" loading="lazy">
+              </div>
+              <div class="pokedex-card-body">
+                <div class="pokedex-card-header">
+                  <strong>${escapeHtml(poke.nombre)}</strong>
+                  <div class="pokedex-card-meta">
+                    <span>Nivel ${poke.nivel || 1}</span>
+                    <span>${poke.experiencia != null ? `${poke.experiencia} EXP` : '—'}</span>
+                  </div>
+                </div>
+                <div class="pokedex-card-stats">
+                  ${poke.stats
+                    .slice(0, 4)
+                    .map((stat) => `
+                      <div class="stat-item">
+                        <span class="stat-label">${escapeHtml(statNames[stat.name] || stat.name)}</span>
+                        <span class="stat-value">${stat.value}</span>
+                      </div>
+                    `)
+                    .join('')}
+                </div>
+                <div class="pokedex-card-types">
+                  ${poke.tipos.map((type) => `<span class="type-pill type-${escapeHtml(type)}">${escapeHtml(type)}</span>`).join('')}
+                </div>
+              </div>
+            </article>
+          `)
+          .join('')}
+      </div>
+    `;
   } catch (error) {
-    console.error("Error al cargar Pokedex:", error);
-    alert("Error al obtener la Pokédex.");
+    console.error('Error al cargar Pokedex:', error);
+    detailPanel.innerHTML = `
+      <div class="detail-empty">
+        <p>Error al obtener la Pokédex de <strong>${escapeHtml(nombre || 'Entrenador')}</strong>.</p>
+      </div>
+    `;
   }
 };
+
+function escapeHtml(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function escapeAttribute(value) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+

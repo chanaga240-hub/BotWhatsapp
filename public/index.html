@@ -252,22 +252,31 @@
       <section id="entrenadores" class="panel glass hidden">
         <div class="panel-head">
           <h3>Directorio de Entrenadores</h3>
-          <p>Consulta los datos, Pokédex y experiencia de cada usuario.</p>
+          <p>Consulta el inventario, nivel y Pokédex de cada entrenador.</p>
         </div>
-        
-        <div class="table-container">
-          <table class="trainer-table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Experiencia</th>
-                <th>Pokémons</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody id="trainerList">
-              </tbody>
-          </table>
+
+        <div class="entrenadores-header">
+          <div class="trainer-summary">
+            <span class="summary-label">Entrenadores activos</span>
+            <strong id="trainerCount">0</strong>
+          </div>
+          <p class="trainer-notice">Haz clic en un entrenador para ver sus Pokémon, estadísticas y artwork.</p>
+        </div>
+
+        <div class="entrenadores-layout">
+          <div class="trainer-panel glass">
+            <div class="trainer-panel-head">
+              <h4>Lista de entrenadores</h4>
+              <p>Selecciona un perfil para abrir su Pokédex.</p>
+            </div>
+            <div id="trainerList" class="trainer-grid"></div>
+          </div>
+
+          <aside id="trainerDetail" class="trainer-detail glass hidden">
+            <div class="detail-empty">
+              <p>Selecciona un entrenador desde la lista para ver la Pokédex completa.</p>
+            </div>
+          </aside>
         </div>
       </section>
 

@@ -71,20 +71,16 @@ process.on('SIGINT', async () => {
 
 app.get('/api/entrenadores', async (req, res) => {
   try {
-    // Consulta súper simple: solo usuarios. 
-    // Si esto funciona, el error 500 desaparece.
     const [entrenadores] = await db.execute(`
-      SELECT id, nombre_whatsapp, experiencia 
+      SELECT id, nombre_whatsapp, experiencia, nivel, pokeballs
       FROM usuarios
     `);
-    
-    // Agregamos la cantidad de forma manual para evitar fallos en el JOIN
-    // Esto es más lento pero es a prueba de errores de SQL
+
     for (let u of entrenadores) {
-        const [pokes] = await db.execute('SELECT COUNT(*) as total FROM pokemon_atrapados WHERE usuario_id = ?', [u.id]);
-        u.cantidad_pokemon = pokes[0].total;
+      const [pokes] = await db.execute('SELECT COUNT(*) as total FROM pokemon_atrapados WHERE usuario_id = ?', [u.id]);
+      u.cantidad_pokemon = pokes[0].total;
     }
-    
+
     res.json(entrenadores);
   } catch (err) {
     console.error('ERROR EN SQL:', err);
@@ -95,29 +91,52 @@ app.get('/api/entrenadores', async (req, res) => {
 app.get('/api/pokedex/:usuarioId', async (req, res) => {
   const { usuarioId } = req.params;
   try {
-    // 1. Obtenemos los IDs de pokemon que tiene el usuario en la BD
-    const [pokesBD] = await db.execute(
-      'SELECT pokemon_id, nombre FROM pokemon_atrapados WHERE usuario_id = ?', 
+    const [usuarioRows] = await db.execute(
+      'SELECT id, nombre_whatsapp, experiencia, nivel, pokeballs FROM usuarios WHERE id = ?',
       [usuarioId]
     );
 
-    // 2. Por cada uno, consultamos la PokeAPI para obtener la imagen
-    // Usamos Promise.all para que sea rápido
+    if (!usuarioRows.length) {
+      return res.status(404).json({ error: 'Entrenador no encontrado' });
+    }
+
+    const usuario = usuarioRows[0];
+    const [pokesBD] = await db.execute(
+      'SELECT pokemon_id, nombre, nivel, experiencia FROM pokemon_atrapados WHERE usuario_id = ?',
+      [usuarioId]
+    );
+
     const pokedexDetallada = await Promise.all(pokesBD.map(async (p) => {
       try {
         const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${p.pokemon_id}`);
         const data = await response.json();
+
         return {
           nombre: p.nombre,
-          imagen: data.sprites.front_default
+          imagen: data.sprites?.front_default || data.sprites?.other?.['official-artwork']?.front_default || null,
+          nivel: p.nivel || 1,
+          experiencia: p.experiencia || 0,
+          stats: data.stats.map((stat) => ({
+            name: stat.stat.name,
+            value: stat.base_stat
+          })),
+          tipos: data.types.map((typeSlot) => typeSlot.type.name)
         };
       } catch (e) {
-        return { nombre: p.nombre, imagen: null };
+        return {
+          nombre: p.nombre,
+          imagen: null,
+          nivel: p.nivel || 1,
+          experiencia: p.experiencia || 0,
+          stats: [],
+          tipos: []
+        };
       }
     }));
 
-    res.json(pokedexDetallada);
+    res.json({ usuario, pokedex: pokedexDetallada });
   } catch (err) {
+    console.error('ERROR EN POKEDEX:', err);
     res.status(500).json({ error: 'Error al consultar Pokédex' });
   }
 });

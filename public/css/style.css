@@ -895,6 +895,308 @@ body {
 .command-team code { color: var(--red); }
 .command-battle code { color: var(--purple); }
 
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge-soft {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+}
+
+.entrenadores-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem 1.25rem 0;
+}
+
+.trainer-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+}
+
+.trainer-summary .summary-label {
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+
+.trainer-summary strong {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.trainer-notice {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.entrenadores-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(360px, 1.25fr);
+  gap: 1.5rem;
+  padding: 0 1.5rem 1.5rem;
+  align-items: start;
+}
+
+.trainer-panel,
+.trainer-detail {
+  min-height: 660px;
+}
+
+.trainer-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 0 0;
+}
+
+.trainer-panel-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.trainer-panel-head p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.trainer-grid {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.85rem 0 0;
+}
+
+.trainer-card {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1rem 1.1rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  text-align: left;
+  color: var(--text);
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+}
+
+.trainer-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.trainer-card-info strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.trainer-card-info span {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.trainer-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-end;
+}
+
+.trainer-detail {
+  padding: 1.6rem;
+  border-radius: var(--radius);
+  background: rgba(13, 20, 33, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-empty,
+.detail-loading {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  padding: 1.2rem;
+}
+
+.trainer-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.trainer-detail-head h3 {
+  margin: 0.35rem 0 0;
+  font-size: 1.5rem;
+}
+
+.pokedex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.pokedex-card {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 18px 40px rgba(0, 0, 0, 0.18);
+  min-height: 180px;
+}
+
+.pokedex-card-img {
+  width: 96px;
+  height: 96px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.pokedex-card-img img {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+}
+
+.pokedex-card-body {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.pokedex-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pokedex-card-body strong {
+  display: block;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  min-width: 0;
+}
+
+.pokedex-card-meta {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.pokedex-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  min-width: 0;
+}
+
+..stat-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.stat-value {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .entrenadores-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .trainer-panel,
+  .trainer-detail {
+    min-height: auto;
+  }
+
+  .pokedex-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pokedex-card-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.type-pill {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.type-normal { background: rgba(255,255,255,0.08); color: #f8fafc; }
+.type-fire { background: rgba(248, 113, 113, 0.16); color: #fee2e2; }
+.type-water { background: rgba(59, 130, 246, 0.16); color: #dbeafe; }
+.type-grass { background: rgba(34, 197, 94, 0.16); color: #dcfce7; }
+.type-electric { background: rgba(250, 204, 21, 0.16); color: #fef9c3; }
+.type-psychic { background: rgba(168, 85, 247, 0.16); color: #ede9fe; }
+.type-ice { background: rgba(56, 189, 248, 0.16); color: #dbeafe; }
+.type-dragon { background: rgba(99, 102, 241, 0.16); color: #e0e7ff; }
+.type-dark { background: rgba(30, 41, 59, 0.16); color: #cbd5e1; }
+.type-fairy { background: rgba(244, 114, 182, 0.16); color: #fbcfe8; }
+.type-steel { background: rgba(148, 163, 184, 0.16); color: #e2e8f0; }
+.type-rock { background: rgba(120, 113, 108, 0.16); color: #e7e5e4; }
+.type-ground { background: rgba(217, 119, 6, 0.16); color: #fde68a; }
+.type-poison { background: rgba(168, 85, 247, 0.16); color: #ede9fe; }
+.type-bug { background: rgba(132, 204, 22, 0.16); color: #ecfccb; }
+.type-fighting { background: rgba(239, 68, 68, 0.16); color: #fecaca; }
+.type-flying { background: rgba(34, 211, 238, 0.16); color: #cfe8f5; }
+.type-ghost { background: rgba(124, 58, 237, 0.16); color: #ddd6fe; }
+
 /* ── Logs / Terminal ── */
 
 .panel-logs {
