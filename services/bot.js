@@ -397,7 +397,24 @@ class BotManager extends EventEmitter {
         // ==========================================
         // COMANDO: #capture
         // ==========================================
-        if (textoMinuscula.startsWith('#capture')) {
+        if (textoMinuscula.startsWith('#capture')) {   
+          const cooldownMs = 3 * 60 * 60 * 1000;
+          if (usuario.ultima_captura) {
+            const ultimaCaptura = new Date(usuario.ultima_captura);
+            const ahora = new Date();
+            const diff = ahora - ultimaCaptura;
+            if (diff < cooldownMs) {
+              const restanteMs = cooldownMs - diff;
+              const horas = Math.floor(restanteMs / (1000 * 60 * 60));
+              const minutos = Math.floor((restanteMs % (1000 * 60 * 60)) / (1000 * 60));
+              const segundos = Math.floor((restanteMs % (1000 * 60)) / 1000);
+              return await msg.reply(
+                `⏳ *Cooldown de captura activo* ⏳\n\n` +
+                `Ya has capturado un Pokémon recientemente. Debes esperar *${horas}h ${minutos}m ${segundos}s* antes de intentar capturar otro.`
+              );
+            }
+          }
+
           if (!pokemonSalvajeActivo) {
             return await msg.reply('❌ No hay ningún Pokémon salvaje cerca en este momento. Espera a que aparezca uno.');
           }
