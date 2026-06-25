@@ -61,6 +61,33 @@ async function liberarPokemon(pokemonAtrapadoId) {
   }
 }
 
+async function transferirPokemon(pokemonAtrapadoId, nuevoUsuarioId) {
+  try {
+    const [rows] = await db.execute(
+      'SELECT id, usuario_id, pokemon_id, nombre, nivel, experiencia, fecha_entrenamiento, fecha_ultimo_combate, combates FROM pokemon_atrapados WHERE id = ?',
+      [pokemonAtrapadoId]
+    );
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    const pokemon = rows[0];
+    const [result] = await db.execute(
+      'UPDATE pokemon_atrapados SET usuario_id = ? WHERE id = ?',
+      [nuevoUsuarioId, pokemonAtrapadoId]
+    );
+
+    if (result.affectedRows !== 1) {
+      return null;
+    }
+
+    return pokemon;
+  } catch (error) {
+    console.error('Error al transferir Pokémon:', error);
+    return null;
+  }
+}
+
 /**
  * Resta una pokébola al usuario cuando falla la captura.
  */
@@ -200,5 +227,6 @@ module.exports = {
   contarCapturas,
   entrenarPokemon,
   registrarCombate,
-  liberarPokemon
+  liberarPokemon,
+  transferirPokemon
 };
