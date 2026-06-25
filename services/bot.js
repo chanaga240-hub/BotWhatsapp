@@ -6,7 +6,7 @@ const { getPuppeteerOptions } = require('./browser');
 // IMPORTAMOS LOS SERVICIOS
 const usuarioService = require('./usuarioService'); 
 const pokemonService = require('./pokemonService');
-const configuracionService = require('./configuracionService'); // ✅ NUEVO SERVICIO IMPORTADO
+const configuracionService = require('./configuracionService'); 
 
 global.pokemonSalvajeActivo = null;
 const ADMIN_NUMBER = '64514737336383:66';
@@ -25,7 +25,6 @@ class BotManager extends EventEmitter {
   GRUPOS_PERMITIDOS = ['120363410946887860@g.us'];
 
   iniciarCronSalvajes() {
-    // ✅ Desactivado el envío automático cada 2 horas por petición del usuario.
     console.log("--- [INFO] El sistema de salvajes automático por tiempo fijo ha sido desactivado ---");
   }
   
@@ -222,20 +221,18 @@ class BotManager extends EventEmitter {
           const config = await configuracionService.obtenerConfiguracion('Envio_Pokemon_Salvaje');
           
           if (config) {
-            const minutosRequeridos = parseInt(config.valor) || 120; // 120 por defecto si falla
+            const minutosRequeridos = parseInt(config.valor) || 120; 
             const ultimaFecha = new Date(config.registro);
             const fechaActual = new Date();
 
-            // Calcular la diferencia en minutos reales
             const diferenciaMs = fechaActual - ultimaFecha;
             const diferenciaMinutos = Math.floor(diferenciaMs / (1000 * 60));
 
             if (diferenciaMinutos < minutosRequeridos) {
               const minutosRestantes = minutosRequeridos - diferenciaMinutos;
               
-              // Calcular horas y minutos restantes estéticos para el mensaje
               const hrsRestantes = Math.floor(minutosRestantes / 60);
-              const minsRestantesFinales = minutosRestantes % 60;
+              const minsRestantesFinales = minutosRestantes % 60; 
               let tiempoTexto = hrsRestantes > 0 
                 ? `*${hrsRestantes} hora(s) y ${minsRestantesFinales} minuto(s)*` 
                 : `*${minsRestantesFinales} minuto(s)*`;
@@ -262,8 +259,6 @@ class BotManager extends EventEmitter {
             const captureRate = await getCaptureRate(data);
             const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
-            global.pokemonSalvajeActivo = { id: data.id, nombre: nombre };
-
             const statsMap = {
               hp: '❤️ Vida', attack: '⚔️ Ataque', defense: '🛡️ Defensa', speed: '⚡ Velocidad',
             };
@@ -284,10 +279,9 @@ class BotManager extends EventEmitter {
               `📊 *Dificultad de captura:* ${Math.round(probabilidadExito)}%\r\n\r\n` +
               `⚔️ *ESTADÍSTICAS BASE FILTRADAS*\r\n` +
               `${estadisticas}\r\n\r\n` +
-              `¡Intenten atraparlo antes de que escape usando:\r\n` +
-              `👉 *#capture*`;
+              `⏳ *El Pokémon se está materializando... ¡Preparen sus Pokéballs!*`;
 
-            // Enviar la alerta a todos los grupos permitidos
+            // Enviar la alerta e imagen a todos los grupos permitidos
             for (const groupId of this.GRUPOS_PERMITIDOS) {
               await this.client.sendMessage(groupId, mensajeAlerta);
               if (urlImagen) {
@@ -299,10 +293,28 @@ class BotManager extends EventEmitter {
             }
 
             if (!isGroup) {
-               await msg.reply(`✅ ¡Éxito! Has activado el evento global de Pokémon salvaje (${nombre}) en los grupos.`);
+              await msg.reply(`✅ ¡Éxito! Has iniciado la aparición de ${nombre}. Iniciando conteo de 15 segundos en los grupos...`);
             }
 
-            this.log(`[Bot] El usuario ${usuario.nombre_whatsapp} invocó satisfactoriamente a ${nombre} bajo la regla de los 120m.`, 'info');
+            // 🕒 CONTEO DE SEGURIDAD (De 15 a 0, bajando de 3 en 3)
+            for (let i = 15; i >= 0; i -= 3) {
+              for (const groupId of this.GRUPOS_PERMITIDOS) {
+                if (i === 0) {
+                  await this.client.sendMessage(groupId, `🌟 *¡CONTEO TERMINADO!* 🌟\n\n¡${nombre} ya es vulnerable! Intenten atraparlo ahora mismo usando:\n👉 *#capture*`);
+                } else {
+                  await this.client.sendMessage(groupId, `⏳ *Materializándose en ${i} segundos...*`);
+                }
+              }
+              // Espera exactamente 3 segundos antes de mandar el siguiente número
+              if (i > 0) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+              }
+            }
+
+            // 🔑 ACTIVACIÓN GLOBAL REAL (Ocurre solo después de que el conteo llega a 0)
+            global.pokemonSalvajeActivo = { id: data.id, nombre: nombre };
+
+            this.log(`[Bot] El usuario ${usuario.nombre_whatsapp} invocó satisfactoriamente a ${nombre}. Evento de captura desbloqueado tras conteo de 15s.`, 'info');
             return; 
 
           } catch (err) {
@@ -359,8 +371,8 @@ class BotManager extends EventEmitter {
               `👤 *Liberado por:* ${usuario.nombre_whatsapp}\n` +
               `👾 *Especie:* ${nombreMostrar} (Nº ${liberado.pokemon_id})\n` +
               (tipos ? `🏷️ *Tipo:* [ *${tipos}* ]\n` : '') +
-              `� *Dificultad de captura:* ${Math.round(probabilidadExito)}%\n` +
-              `�🔢 *Nivel:* ${liberado.nivel || 1} · *EXP:* ${liberado.experiencia || 0}\n\n` +
+              `📊 *Dificultad de captura:* ${Math.round(probabilidadExito)}%\n` +
+              `🔢 *Nivel:* ${liberado.nivel || 1} · *EXP:* ${liberado.experiencia || 0}\n\n` +
               `¡Este Pokémon ha quedado salvaje en los grupos permitidos. Intenta atraparlo con:\n👉 *#capture*`;
 
             for (const groupId of this.GRUPOS_PERMITIDOS) {
@@ -388,7 +400,7 @@ class BotManager extends EventEmitter {
         // COMANDO: #pokemonstats [nombre_pokemon]
         // ==========================================
         if (textoMinuscula.startsWith('#pokemonstats')) {
-          const { handlePokemonStats } = require('../commands/pokemonStats'); // Corrige la ruta según tus carpetas
+          const { handlePokemonStats } = require('../commands/pokemonStats'); 
           return await handlePokemonStats(msg);
         }
 
@@ -444,10 +456,9 @@ class BotManager extends EventEmitter {
           }
 
           try {
-            // Obtener datos del Pokémon para calcular probabilidad dinámica
             const { consultarPokemon: pokeConsulta, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
             let dataPokemon = null;
-            let captureRate = 45; // Default si no se puede obtener
+            let captureRate = 45; 
             
             try {
               dataPokemon = await pokeConsulta(pokemonSalvajeActivo.id);
@@ -456,7 +467,6 @@ class BotManager extends EventEmitter {
               this.log(`[Bot] Advertencia: No se pudo obtener capture_rate de ${pokemonSalvajeActivo.nombre}, usando default.`, 'warn');
             }
 
-            // Calcular probabilidad según fórmula: (capture_rate / 255 × 80) + 5
             const probabilidadExito = calcularProbabilidadCaptura(captureRate) / 100;
             const exito = Math.random() < probabilidadExito;
 
@@ -464,7 +474,6 @@ class BotManager extends EventEmitter {
               const nombrePokemon = pokemonSalvajeActivo.nombre;
               const idPokemon = pokemonSalvajeActivo.id;
 
-              // Si el salvaje fue liberado por un usuario, preservamos nivel/experiencia al capturarlo
               const nivelProp = pokemonSalvajeActivo.nivel || null;
               const expProp = pokemonSalvajeActivo.experiencia || null;
               const guardado = await pokemonService.registrarCaptura(usuario.id, idPokemon, nombrePokemon, nivelProp, expProp);
@@ -479,7 +488,7 @@ class BotManager extends EventEmitter {
             } else {
               await pokemonService.restarPokeball(usuario.id);
               const porcentajeExito = Math.round(probabilidadExito * 100);
-              return await msg.reply(`💨 El Pokémon se movió bruscamente y la Pokéball falló. (Ratio: ${porcentajeExito}%) ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
+              return await msg.reply(`💨 El Pokémon se moved bruscamente y la Pokéball falló. (Ratio: ${porcentajeExito}%) ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
             }
           } catch (err) {
             this.log(`Error en #capture: ${err.message}`, 'error');
