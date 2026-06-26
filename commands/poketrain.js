@@ -9,7 +9,7 @@ async function handlePokeTrain(msg, nombrePokemon) {
     const nombreBuscado = (nombrePokemon || msg.body?.replace(/^#poketrain/i, '') || '').trim();
 
     // ==========================================================
-    // CASO COMPLEMENTARIO: NO MANDÓ NOMBRE -> MOSTRAR LISTA PENDIENTE
+    // CASO COMPLEMENTARIO: MOSTRAR LISTA PENDIENTE
     // ==========================================================
     if (!nombreBuscado) {
       const todos = await pokemonService.obtenerPokemonParaEntrenamiento(whatsappId);
@@ -19,7 +19,7 @@ async function handlePokeTrain(msg, nombrePokemon) {
       }
 
       const ahora = new Date();
-      const cooldownMs = 30 * 60 * 1000; // Cooldown de 30 minutos coordinado con tu service
+      const cooldownMs = 30 * 60 * 1000; 
 
       let readyList = '';
       let cooldownList = '';
@@ -56,12 +56,12 @@ async function handlePokeTrain(msg, nombrePokemon) {
     }
 
     // ==========================================================
-    // LÓGICA DE ENTRENAMIENTO ORIGINAL (CUANDO SÍ HAY NOMBRE)
+    // LÓGICA DE ENTRENAMIENTO
     // ==========================================================
     const resultado = await pokemonService.entrenarPokemon(whatsappId, nombreBuscado);
 
     if (!resultado) {
-      return await replyText(msg, '⚠️ Ocurrió un error inesperado al entrenar tu Pokémon. Intenta de nuevo más tarde.');
+      return await replyText(msg, '⚠️ Ocurrió un error inesperado al entrenar tu Pokémon.');
     }
 
     if (resultado.error === 'not_found') {
@@ -70,28 +70,35 @@ async function handlePokeTrain(msg, nombrePokemon) {
 
     if (resultado.error === 'cooldown') {
       const { minutos, segundos } = resultado.remaining;
-      return await replyText(msg,
-        `⏳ Este Pokémon ya fue entrenado recientemente.\nVuelve a intentarlo en *${minutos} minutos y ${segundos} segundos*.`
-      );
+      return await replyText(msg, `⏳ Este Pokémon ya fue entrenado recientemente.\nVuelve a intentarlo en *${minutos} minutos y ${segundos} segundos*.`);
     }
 
     if (resultado.error === 'db_error') {
-      return await replyText(msg, '⚠️ Hubo un problema al actualizar la experiencia en la base de datos. Intenta de nuevo.');
+      return await replyText(msg, '⚠️ Hubo un problema al actualizar la experiencia en la base de datos.');
     }
 
     if (resultado.success) {
-      const poke = resultado.pokemon;
-      const progreso = poke.experienciaNueva % 100; 
+      const poke = resultado.pokemon; // Objeto con los datos nuevos
       
-      return await replyText(msg,
-          `🏋️‍♂️ *¡SESIÓN DE ENTRENAMIENTO COMPLETADA!* 🏋️‍♂️\n` +
+      // Cálculo del progreso (0 a 100)
+      const progreso = Math.min((poke.experiencia / poke.xpNecesaria) * 100, 100);
+      
+      // Generación de barra visual
+      const barraVisual = `[${'█'.repeat(Math.floor(progreso / 10))}${'░'.repeat(10 - Math.floor(progreso / 10))}]`;
+
+      let mensajeExito = `🏋️‍♂️ *¡SESIÓN DE ENTRENAMIENTO COMPLETADA!* 🏋️‍♂️\n` +
           `──────────────────────\n` +
-          `🌟 *${poke.nombre}* ha recibido un entrenamiento intensivo.\n` +
-          `📈 *Experiencia:* ${poke.experienciaAnterior} ➔ *${poke.experienciaNueva}* (+5 EXP)\n\n` +
-          `📊 *Progreso al próximo nivel:* [${'█'.repeat(Math.floor(progreso / 10))}${'░'.repeat(10 - Math.floor(progreso / 10))}] ${progreso}%\n` +
-          `──────────────────────\n` +
-          `💬 _"${poke.nombre} se ve más fuerte que hace un momento."_`
-      );
+          `🌟 *${poke.nombre}* (Nivel ${poke.nivel})\n` +
+          `📈 *Experiencia:* ${poke.experienciaAnterior} ➔ *${poke.experiencia}* (+5 EXP)\n\n` +
+          `📊 *Progreso al próximo nivel:* ${barraVisual} ${progreso.toFixed(0)}%\n`;
+
+      if (resultado.subioNivel) {
+          mensajeExito += `✨ *¡FELICIDADES! ¡SUBISTE A NIVEL ${poke.nivel}!* ✨\n`;
+      }
+
+      mensajeExito += `──────────────────────`;
+
+      return await replyText(msg, mensajeExito);
     }
 
     return await replyText(msg, '⚠️ No se pudo completar el entrenamiento.');

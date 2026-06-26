@@ -176,49 +176,68 @@ async function contarCapturas(whatsappId) {
   }
 }
 
+// services/pokemonService.js
+
 async function entrenarPokemon(whatsappId, nombrePokemon) {
-  const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
-  if (!pokemon) {
-    return { error: 'not_found' };
-  }
+    const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
+    if (!pokemon) return { error: 'not_found' };
 
-  const ahora = new Date();
-  const ultima = pokemon.fecha_entrenamiento ? new Date(pokemon.fecha_entrenamiento) : null;
-  const cooldownMs = 30 * 60 * 1000;
+    // --- COOLDOWN (30 minutos) ---
+    const ahora = new Date();
+    const ultima = pokemon.fecha_entrenamiento ? new Date(pokemon.fecha_entrenamiento) : null;
+    const cooldownMs = 30 * 60 * 1000;
 
-  if (ultima && ahora - ultima < cooldownMs) {
-    const restanteMs = cooldownMs - (ahora - ultima);
-    const minutos = Math.floor(restanteMs / (1000 * 60));
-    const segundos = Math.floor((restanteMs % (1000 * 60)) / 1000);
-    return {
-      error: 'cooldown',
-      remaining: { minutos, segundos },
-      pokemon: { nombre: pokemon.nombre }
-    };
-  }
+    if (ultima && ahora - ultima < cooldownMs) {
+        const restanteMs = cooldownMs - (ahora - ultima);
+        return { 
+            error: 'cooldown', 
+            remaining: { 
+                minutos: Math.floor(restanteMs / 60000), 
+                segundos: Math.floor((restanteMs % 60000) / 1000) 
+            } 
+        };
+    }
 
-  const experienciaAnterior = pokemon.experiencia || 0;
-  const experienciaNueva = experienciaAnterior + 5;
+    // --- LÓGICA DE NIVEL Y XP ---
+    let nivelActual = pokemon.nivel || 1;
+    let expActual = (pokemon.experiencia || 0) + 5;
+    let subioNivel = false;
+    
+    // Fórmula: 100 + (25 * nivel)
+    let xpNecesaria = 100 + ((nivelActual - 1) * 25);
+    
+    // Verificamos si alcanza para subir de nivel
+    if (expActual >= xpNecesaria) {
+        nivelActual++;
+        expActual = expActual - xpNecesaria; 
+        subioNivel = true;
+    }
 
-  try {
-    await db.execute(
-      'UPDATE pokemon_atrapados SET experiencia = IFNULL(experiencia, 0) + 5, fecha_entrenamiento = NOW() WHERE id = ?',
-      [pokemon.id]
-    );
+    try {
+        // Actualizamos en la DB
+        await db.execute(
+            'UPDATE pokemon_atrapados SET experiencia = ?, nivel = ?, fecha_entrenamiento = NOW() WHERE id = ?',
+            [expActual, nivelActual, pokemon.id]
+        );
 
-    return {
-      success: true,
-      pokemon: {
-        nombre: pokemon.nombre,
-        experienciaAnterior,
-        experienciaNueva
-      }
-    };
-  } catch (error) {
-    console.error('Error al entrenar Pokémon:', error);
-    return { error: 'db_error' };
-  }
+        return {
+            success: true,
+            subioNivel: subioNivel,
+            pokemon: {
+                nombre: pokemon.nombre,
+                nivel: nivelActual,
+                experiencia: expActual,
+                xpNecesaria: 100 + (25 * nivelActual),
+                experienciaAnterior: pokemon.experiencia, // Para mostrar la diferencia
+                experienciaNueva: expActual
+            }
+        };
+    } catch (error) {
+        console.error('Error al entrenar Pokémon en DB:', error);
+        return { error: 'db_error' };
+    }
 }
+
 
 /**
  * Marca que un Pokémon ha participado en un combate: actualiza fecha_ultimo_combate y suma 1 a combates

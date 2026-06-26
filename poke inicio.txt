@@ -1,0 +1,2 @@
+set PM2_HOME=C:\pm2
+Tu "Cheat Sheet" de Comandos DiariosUna vez hayas ejecutado el comando de arriba, aquí tienes lo que realmente vas a usar:AcciónComandoVerificar si el bot sigue vivopm2 statusVer qué está haciendo (Logs)pm2 logsReiniciar el bot (tras cambios)pm2 restart indexDetener el botpm2 stop indexIniciar el bot (si lo detuviste)pm2 start index
