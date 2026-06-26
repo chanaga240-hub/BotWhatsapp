@@ -1,4 +1,6 @@
+const db = require('./database');
 const POKEAPI_BASE = 'https://pokeapi.co/api/v2/pokemon';
+
 
 const speciesCache = new Map();
 const abilityCache = new Map();
@@ -174,6 +176,29 @@ function randomPokemonId() {
   return Math.floor(Math.random() * 1025) + 1;
 }
 
+async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
+  let multiplicadorTotal = 1;
+  // Convertimos a arreglo para evitar errores si llega un solo texto
+  const tipos = Array.isArray(tiposDefensor) ? tiposDefensor : [tiposDefensor];
+
+  for (const tipoD of tipos) {
+    try {
+      // Usamos db.execute como en tu usuarioService
+      const [rel] = await db.execute(
+        "SELECT multiplicador FROM tipos_relaciones WHERE tipo_atacante = ? AND tipo_defensor = ?",
+        [tipoAtacante, tipoD]
+      );
+      
+      if (rel.length > 0) {
+        multiplicadorTotal *= parseFloat(rel[0].multiplicador);
+      }
+    } catch (error) {
+      console.error(`Error consultando multiplicador BD (${tipoAtacante} vs ${tipoD}):`, error);
+    }
+  }
+  return multiplicadorTotal;
+}
+
 module.exports = {
   consultarPokemon,
   getNombreEspanol,
@@ -186,4 +211,5 @@ module.exports = {
   getAudioGrito,
   getCaptureRate,
   calcularProbabilidadCaptura,
+  obtenerMultiplicadorLocal
 };
