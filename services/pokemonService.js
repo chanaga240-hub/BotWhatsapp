@@ -129,23 +129,36 @@ async function obtenerPokedex(whatsappId) {
     /**
      * Verifica si un usuario tiene un Pokémon específico por su nombre y extrae sus datos
      */
-    async function verificarYObtenerPokemon(whatsappId, nombrePokemon) {
-        try {
-      const [rows] = await db.execute(
-        `SELECT pa.id, pa.nombre, pa.pokemon_id, pa.nivel, pa.experiencia, pa.fecha_entrenamiento,
-        pa.fecha_ultimo_combate, pa.combates, pa.atrapado_en
-        FROM pokemon_atrapados pa
-        JOIN usuarios u ON pa.usuario_id = u.id
-        WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
-        LIMIT 1`,
-        [whatsappId, nombrePokemon.trim()]
-      );
+    async function verificarYObtenerPokemon(whatsappId, nombreOId) {
+    try {
+        const input = nombreOId.trim();
+
+        // 1. Intentar buscar por nombre
+        let [rows] = await db.execute(
+            `SELECT pa.* FROM pokemon_atrapados pa
+             JOIN usuarios u ON pa.usuario_id = u.id
+             WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
+             LIMIT 1`,
+            [whatsappId, input]
+        );
+
+        // 2. Si no se encontró por nombre, intentar buscar por ID (pokemon_id)
+        if (rows.length === 0) {
+            [rows] = await db.execute(
+                `SELECT pa.* FROM pokemon_atrapados pa
+                 JOIN usuarios u ON pa.usuario_id = u.id
+                 WHERE u.whatsapp_id = ? AND pa.pokemon_id = ?
+                 LIMIT 1`,
+                [whatsappId, input]
+            );
+        }
+
         return rows.length > 0 ? rows[0] : null;
-        } catch (error) {
+    } catch (error) {
         console.error('Error al verificar Pokémon de la Pokedex:', error);
         return null;
-        }
     }
+}
 
 async function contarCapturas(whatsappId) {
   try {

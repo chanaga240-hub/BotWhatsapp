@@ -328,7 +328,7 @@ window.viewPokedex = async function(usuarioId, nombre) {
                 </div>
                 <div class="pokedex-card-stats">
                   ${poke.stats
-                    .slice(0, 4)
+                    .slice(0, 6)
                     .map((stat) => `
                       <div class="stat-item">
                         <span class="stat-label">${escapeHtml(statNames[stat.name] || stat.name)}</span>
