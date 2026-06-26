@@ -1,8 +1,10 @@
 const usuarioService = require('../services/usuarioService');
+
 const {
   consultarPokemon,
   getStat,
   getImagen,
+  obtenerMultiplicadorLocal // <-- Asegúrate de que esta función se exporte correctamente desde tu servicio
 } = require('../services/pokeapi');
 const { replyWithLabeledStickers } = require('../services/reply');
 const pokemonService = require('../services/pokemonService');
@@ -167,7 +169,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     const multNivel1 = 1 + (desafio.pokemonRetador.nivel - 1) * 0.05;
     const multNivel2 = 1 + (pokeInventarioRival.nivel - 1) * 0.05;
 
-    // Se agrega el nivel al objeto combatiente para poder calcular la ventaja luego
+    // Se agrega el nivel y los tipos al objeto combatiente
     const p1 = {
       nombre: desafio.pokemonRetador.nombre,
       nivel: desafio.pokemonRetador.nivel,
@@ -175,9 +177,10 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       atk: Math.floor(getStat(pokeJugador, 'attack') * multNivel1),
       def: Math.floor(getStat(pokeJugador, 'defense') * multNivel1),
       vel: Math.floor(getStat(pokeJugador, 'speed') * multNivel1),
+      tipos: pokeJugador.types.map(t => t.type.name) // <-- NUEVO: Arreglo de tipos del retador
     };
 
-    // Se agrega el nivel al objeto combatiente para poder calcular la ventaja luego
+    // Se agrega el nivel y los tipos al objeto combatiente
     const p2 = {
       nombre: pokeInventarioRival.nombre,
       nivel: pokeInventarioRival.nivel,
@@ -185,6 +188,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       atk: Math.floor(getStat(pokeRival, 'attack') * multNivel2),
       def: Math.floor(getStat(pokeRival, 'defense') * multNivel2),
       vel: Math.floor(getStat(pokeRival, 'speed') * multNivel2),
+      tipos: pokeRival.types.map(t => t.type.name) // <-- NUEVO: Arreglo de tipos del defensor
     };
 
     const hpMaxP1 = p1.hp;
@@ -211,15 +215,12 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       // ---------------------------------------------
       // SISTEMA DE ESQUIVE (Velocidad + Bono Nivel con Límite)
       // ---------------------------------------------
-      let probEsquivarBase = defensor.vel / 20; // Fórmula base
+      let probEsquivarBase = defensor.vel / 20; 
       
-      // +1% por cada nivel alcanzado después del nivel 1
       let bonoNivel = defensor.nivel > 1 ? (defensor.nivel - 1) : 0; 
       
-      // Sumamos la velocidad y el bono de nivel
       let probTotalEsquive = probEsquivarBase + bonoNivel;
       
-      // 🛡️ LÍMITE DE SEGURIDAD: Nunca podrá esquivar más del 30% de las veces
       if (probTotalEsquive > 30) {
         probTotalEsquive = 30;
       }
@@ -230,12 +231,32 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
         cronica += `• 💨 ¡*${atacante.nombre}* ataca, pero *${defensor.nombre}* logra esquivarlo!\r\n\r\n`;
       } else {
         // ---------------------------------------------
-        // CÁLCULO DE DAÑO NORMAL (Si no esquiva)
+        // SELECCIÓN ALEATORIA DE TIPO DE ATAQUE
+        // ---------------------------------------------
+        const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
+        const tiposDefensor = defensor.tipos; // Le pasamos el arreglo completo
+
+        // ---------------------------------------------
+        // CÁLCULO DE DAÑO CON MULTIPLICADORES
         // ---------------------------------------------
         let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
         if (danioBase < 12) {
           danioBase = Math.floor(Math.random() * 8) + 12;
         }
+
+        // Aplicamos el multiplicador elemental (CON AWAIT)
+        let multiplicadorElemental = 1;
+        try {
+          multiplicadorElemental = await obtenerMultiplicadorLocal(tipoElegido, tiposDefensor);
+          
+          if (typeof multiplicadorElemental !== 'number' || isNaN(multiplicadorElemental)) {
+             multiplicadorElemental = 1; 
+          }
+        } catch (err) {
+          console.error(`Error al calcular multiplicador:`, err);
+        }
+
+        danioBase = Math.floor(danioBase * multiplicadorElemental);
 
         const esCritico = Math.random() < 0.15;
         if (esCritico) danioBase = Math.floor(danioBase * 1.5);
@@ -243,9 +264,13 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
         defensor.hp -= danioBase;
         if (defensor.hp < 0) defensor.hp = 0;
 
+        let extraText = '';
+        if (multiplicadorElemental > 1) extraText = ' ¡Es muy eficaz! 🔥 ';
+        else if (multiplicadorElemental < 1) extraText = ' No es muy eficaz... 🛡️ ';
+
         cronica +=
-          `• 💥 *${atacante.nombre}* arremete con fuerza.\r\n` +
-          `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}Genera *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
+          `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
+          `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${extraText}Genera *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
           `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;
       }
 
@@ -316,5 +341,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     console.error('Error procesando aceptación de pokebatle:', error);
   }
 }
+
+
 
 module.exports = { handlePokebatle, handlePokeaccept };
