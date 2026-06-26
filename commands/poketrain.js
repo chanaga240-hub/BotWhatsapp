@@ -1,12 +1,54 @@
 const pokemonService = require('../services/pokemonService');
+const usuarioService = require('../services/usuarioService'); // <-- Importamos para verificar el nivel
 const { replyText } = require('../services/reply');
 
 async function handlePokeTrain(msg, nombrePokemon) {
   try {
     const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
-    
-    // Validamos de forma segura si el nombre viene por parámetro o directo en el body
     const nombreBuscado = (nombrePokemon || msg.body?.replace(/^#poketrain/i, '') || '').trim();
+
+    // ==========================================================
+    // CASO NUEVO: ENTRENAMIENTO MASIVO (ALL)
+    // ==========================================================
+    if (nombreBuscado.toLowerCase() === 'all') {
+      // 1. Obtener datos del entrenador para validar su nivel
+      const usuario = await usuarioService.obtenerUsuario(whatsappId);
+      if (!usuario) return await replyText(msg, '❌ No estás registrado como entrenador.');
+
+      // ⚠️ Calcula el nivel del entrenador. Si tienes columna 'nivel', usará esa. 
+      // Si no, lo calcula automáticamente por experiencia (cada 100 XP = 1 nivel).
+      const nivelEntrenador = usuario.nivel || Math.floor((usuario.experiencia || 0) / 100) + 1;
+
+      // 2. Validar nivel requerido (Nivel 5)
+      if (nivelEntrenador < 5) {
+        return await replyText(msg, `⛔ *Acceso Denegado*\nEl comando \`#poketrain all\` es una técnica avanzada solo disponible para entrenadores de *Nivel 5 o superior*.\n(Tu nivel actual de entrenador es: ${nivelEntrenador})`);
+      }
+
+      // 3. Ejecutar entrenamiento masivo
+      const resultadoAll = await pokemonService.entrenarTodosListos(whatsappId);
+      
+      if (resultadoAll.error) {
+        return await replyText(msg, '⚠️ Ocurrió un error al intentar el entrenamiento masivo en la base de datos.');
+      }
+
+      if (resultadoAll.entrenados === 0) {
+        return await replyText(msg, '⏳ Todos tus Pokémon están exhaustos en este momento. ¡Déjalos descansar!');
+      }
+
+      // 4. Armar el mensaje de éxito
+      let msgAll = `🏋️‍♂️ *¡ENTRENAMIENTO MASIVO COMPLETADO!* 🏋️‍♂️\n──────────────────────\n`;
+      msgAll += `✅ Has entrenado a *${resultadoAll.entrenados} Pokémon* simultáneamente (+5 EXP a cada uno).\n`;
+      
+      if (resultadoAll.subieron.length > 0) {
+        msgAll += `\n✨ *¡${resultadoAll.subieron.length} SUBIERON DE NIVEL!* ✨\n`;
+        resultadoAll.subieron.forEach(p => {
+          msgAll += `🔸 *${p.nombre}* ➔ Nivel ${p.nivel}\n`;
+        });
+      }
+      msgAll += `──────────────────────`;
+      
+      return await replyText(msg, msgAll);
+    }
 
     // ==========================================================
     // CASO COMPLEMENTARIO: MOSTRAR LISTA PENDIENTE
@@ -50,13 +92,13 @@ async function handlePokeTrain(msg, nombrePokemon) {
         mensajeLista += `\n🕒 *En Descanso (Cooldown):*\n${cooldownList}`;
       }
 
-      mensajeLista += `──────────────────────\n👉 _Entrena a uno usando:_ *#poketrain [nombre]*`;
+      mensajeLista += `──────────────────────\n👉 _Entrena a uno usando:_ *#poketrain [nombre]*\n👉 _Entrena a todos:_ *#poketrain all* (Lv. 5+)`;
 
       return await replyText(msg, mensajeLista);
     }
 
     // ==========================================================
-    // LÓGICA DE ENTRENAMIENTO
+    // LÓGICA DE ENTRENAMIENTO INDIVIDUAL
     // ==========================================================
     const resultado = await pokemonService.entrenarPokemon(whatsappId, nombreBuscado);
 
@@ -78,12 +120,9 @@ async function handlePokeTrain(msg, nombrePokemon) {
     }
 
     if (resultado.success) {
-      const poke = resultado.pokemon; // Objeto con los datos nuevos
+      const poke = resultado.pokemon;
       
-      // Cálculo del progreso (0 a 100)
       const progreso = Math.min((poke.experiencia / poke.xpNecesaria) * 100, 100);
-      
-      // Generación de barra visual
       const barraVisual = `[${'█'.repeat(Math.floor(progreso / 10))}${'░'.repeat(10 - Math.floor(progreso / 10))}]`;
 
       let mensajeExito = `🏋️‍♂️ *¡SESIÓN DE ENTRENAMIENTO COMPLETADA!* 🏋️‍♂️\n` +

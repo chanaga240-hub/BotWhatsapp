@@ -205,7 +205,7 @@ async function entrenarPokemon(whatsappId, nombrePokemon) {
     
     // Fórmula: 100 + (25 * nivel)
     let xpNecesaria = 100 + ((nivelActual - 1) * 25);
-    
+
     // Verificamos si alcanza para subir de nivel
     if (expActual >= xpNecesaria) {
         nivelActual++;
@@ -275,6 +275,58 @@ async function obtenerPokemonParaEntrenamiento(whatsappId) {
   }
 }
 
+/**
+ * Entrena a TODOS los Pokémon de un usuario que no estén en cooldown.
+ */
+async function entrenarTodosListos(whatsappId) {
+  try {
+    // Obtenemos todos los Pokémon del usuario
+    const [rows] = await db.execute(
+      `SELECT pa.* FROM pokemon_atrapados pa
+       JOIN usuarios u ON pa.usuario_id = u.id
+       WHERE u.whatsapp_id = ?`,
+      [whatsappId]
+    );
+
+    const ahora = new Date();
+    const cooldownMs = 30 * 60 * 1000; // 30 minutos
+    let entrenados = 0;
+    let subieron = [];
+
+    // Recorremos los Pokémon para entrenar solo a los que ya descansaron
+    for (const pokemon of rows) {
+      const ultima = pokemon.fecha_entrenamiento ? new Date(pokemon.fecha_entrenamiento) : null;
+      
+      if (!ultima || (ahora - ultima >= cooldownMs)) {
+        let nivelActual = pokemon.nivel || 1;
+        let expActual = (pokemon.experiencia || 0) + 5;
+        let subioNivel = false;
+        let xpNecesaria = 100 + ((nivelActual - 1) * 25);
+
+        // Subida de nivel
+        if (expActual >= xpNecesaria) {
+          nivelActual++;
+          expActual = expActual - xpNecesaria;
+          subioNivel = true;
+          subieron.push({ nombre: pokemon.nombre, nivel: nivelActual });
+        }
+
+        // Actualizamos este Pokémon en la base de datos
+        await db.execute(
+          'UPDATE pokemon_atrapados SET experiencia = ?, nivel = ?, fecha_entrenamiento = NOW() WHERE id = ?',
+          [expActual, nivelActual, pokemon.id]
+        );
+        entrenados++;
+      }
+    }
+
+    return { error: null, entrenados, subieron };
+  } catch (error) {
+    console.error('Error en entrenarTodosListos:', error);
+    return { error: 'db_error' };
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -285,5 +337,6 @@ module.exports = {
   registrarCombate,
   liberarPokemon,
   transferirPokemon,
-  obtenerPokemonParaEntrenamiento
+  obtenerPokemonParaEntrenamiento,
+  entrenarTodosListos
 };
