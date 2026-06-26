@@ -176,7 +176,6 @@ async function contarCapturas(whatsappId) {
   }
 }
 
-// services/pokemonService.js
 
 async function entrenarPokemon(whatsappId, nombrePokemon) {
     const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
@@ -327,6 +326,59 @@ async function entrenarTodosListos(whatsappId) {
   }
 }
 
+async function usarPocionXp(whatsappId, nombrePokemon) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Verificar inventario
+    const [inv] = await connection.execute(
+      'SELECT i.pocion_xp_small FROM inventario i JOIN usuarios u ON i.usuario_id = u.id WHERE u.whatsapp_id = ? FOR UPDATE',
+      [whatsappId]
+    );
+
+    if (!inv[0] || inv[0].pocion_xp_small <= 0) {
+      await connection.rollback();
+      return { error: 'sin_objetos' };
+    }
+
+    // 2. Buscar al Pokémon
+    const [poke] = await connection.execute(
+      'SELECT pa.* FROM pokemon_atrapados pa JOIN usuarios u ON pa.usuario_id = u.id WHERE u.whatsapp_id = ? AND pa.nombre = ? LIMIT 1',
+      [whatsappId, nombrePokemon]
+    );
+
+    if (poke.length === 0) {
+      await connection.rollback();
+      return { error: 'pokemon_no_encontrado' };
+    }
+
+    // 3. Aplicar efecto (+50 XP)
+    const pokemon = poke[0];
+    const nuevaXp = (pokemon.experiencia || 0) + 50;
+
+    await connection.execute(
+      'UPDATE pokemon_atrapados SET experiencia = ? WHERE id = ?',
+      [nuevaXp, pokemon.id]
+    );
+
+    // 4. Restar 1 objeto
+    await connection.execute(
+      'UPDATE inventario i JOIN usuarios u ON i.usuario_id = u.id SET i.pocion_xp_small = i.pocion_xp_small - 1 WHERE u.whatsapp_id = ?',
+      [whatsappId]
+    );
+
+    await connection.commit();
+    return { success: true, nombre: pokemon.nombre, nuevaXp };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al usar poción:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -338,5 +390,6 @@ module.exports = {
   liberarPokemon,
   transferirPokemon,
   obtenerPokemonParaEntrenamiento,
-  entrenarTodosListos
+  entrenarTodosListos,
+  usarPocionXp
 };

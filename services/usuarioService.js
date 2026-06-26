@@ -150,4 +150,27 @@ async function transferirMonedas(remitenteId, destinatarioId, cantidad) {
   }
 }
 
-module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, realizarTrabajo, comprarObjeto, transferirMonedas };
+async function obtenerInventarioCompleto(whatsappId) {
+  try {
+    const query = `
+      SELECT u.pokeballs, i.pocion_xp_small
+      FROM usuarios u
+      LEFT JOIN inventario i ON u.id = i.usuario_id
+      WHERE u.whatsapp_id = ?
+    `;
+    const [rows] = await db.execute(query, [whatsappId]);
+    
+    if (rows.length === 0) return null;
+    
+    // Si el usuario no tiene fila en inventario, devolvemos 0 pociones
+    return {
+      pokeballs: rows[0].pokeballs || 0,
+      pocion_xp_small: rows[0].pocion_xp_small || 0
+    };
+  } catch (error) {
+    console.error('Error al obtener inventario:', error);
+    return null;
+  }
+}
+
+module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, realizarTrabajo, comprarObjeto, transferirMonedas, obtenerInventarioCompleto };

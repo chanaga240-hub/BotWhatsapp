@@ -205,7 +205,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     cronica += `⚡ _${turnoJugador ? p1.nombre : p2.nombre} toma la iniciativa por velocidad._\r\n\r\n`;
 
     let rondas = 0;
-    while (p1.hp > 0 && p2.hp > 0 && rondas < 8) {
+    while (p1.hp > 0 && p2.hp > 0 && rondas < 15) {
       rondas++;
       cronica += `*ROUND ${rondas}* 🥊\r\n`;
 

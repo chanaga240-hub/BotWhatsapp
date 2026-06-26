@@ -27,7 +27,7 @@ async function handleBuy(msg, texto) {
   }
 
   if (resultado.exito) {
-    return await replyText(msg, `✅ *¡Compra exitosa!* \nHas comprado ${resultado.cantidad} ${resultado.objeto}(s) por ${resultado.costo} monedas.`);
+    return await replyText(msg, `✅ ¡Compra realizada!\nHas adquirido *${resultado.cantidad}x ${resultado.objeto}* por ${resultado.costo} monedas.`);
   }
 
   return await replyText(msg, '⚠️ Error al procesar la compra.');

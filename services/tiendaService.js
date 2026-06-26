@@ -1,55 +1,75 @@
 const db = require('./database'); // Asegúrate de importar tu conexión a BD
 
 async function procesarCompra(usuarioId, codigo, cantidad) {
+  const connection = await db.getConnection(); // Obtenemos conexión para transacción
   try {
-    // 1. Obtener datos del usuario
-    const [rows] = await db.execute('SELECT monedas FROM usuarios WHERE id = ?', [usuarioId]);
-    if (rows.length === 0) return { error: 'usuario_no_encontrado' };
-    const usuario = rows[0];
+    await connection.beginTransaction();
 
-    // 2. Definir la lógica de cada producto (Aquí puedes expandir a 002, 003, etc.)
+    // 1. Obtener monedas bloqueando la fila para evitar concurrencia
+    const [rows] = await connection.execute(
+      'SELECT monedas FROM usuarios WHERE id = ? FOR UPDATE', 
+      [usuarioId]
+    );
+    
+    if (rows.length === 0) {
+      await connection.rollback();
+      return { error: 'usuario_no_encontrado' };
+    }
+    
+    const usuario = rows[0];
     let producto = null;
 
+    // 2. Definir producto según código
     if (codigo === '001') {
       producto = {
         nombre: "Pokéball",
         precioUnitario: 25,
-        query: 'UPDATE usuarios SET monedas = monedas - ?, pokeballs = pokeballs + ? WHERE id = ?'
+        tipo: 'simple'
       };
-    } 
-    // Ejemplo de cómo agregar otro código fácilmente:
-    /*
-    else if (codigo === '002') {
+    } else if (codigo === '002') {
       producto = {
-        nombre: "Super Poción",
-        precioUnitario: 100,
-        query: 'UPDATE usuarios SET monedas = monedas - ?, pociones = pociones + ? WHERE id = ?'
+        nombre: "Poción_XP_Small",
+        precioUnitario: 200,
+        tipo: 'inventario'
       };
-    }
-    */
-    else {
+    } else {
+      await connection.rollback();
       return { error: 'codigo_invalido' };
     }
 
-    // 3. Validaciones
+    // 3. Validar fondos
     const costoTotal = producto.precioUnitario * cantidad;
     if (usuario.monedas < costoTotal) {
+      await connection.rollback();
       return { error: 'fondos_insuficientes', saldo: usuario.monedas, costo: costoTotal };
     }
 
-    // 4. Ejecutar compra
-    await db.execute(producto.query, [costoTotal, cantidad, usuarioId]);
+    // 4. Ejecutar actualizaciones según el tipo
+    // Restamos monedas siempre
+    await connection.execute('UPDATE usuarios SET monedas = monedas - ? WHERE id = ?', [costoTotal, usuarioId]);
 
-    return { 
-      exito: true, 
-      objeto: producto.nombre, 
-      cantidad: cantidad, 
-      costo: costoTotal 
-    };
+    if (producto.tipo === 'simple') {
+      // Caso Pokéball (tabla usuarios)
+      await connection.execute('UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id = ?', [cantidad, usuarioId]);
+    } else {
+      // Caso Poción (tabla inventario)
+      // Usamos INSERT ... ON DUPLICATE KEY UPDATE por si el usuario aún no tiene registro en inventario
+      await connection.execute(
+        `INSERT INTO inventario (usuario_id, pocion_xp_small) VALUES (?, ?) 
+         ON DUPLICATE KEY UPDATE pocion_xp_small = pocion_xp_small + ?`,
+        [usuarioId, cantidad, cantidad]
+      );
+    }
+
+    await connection.commit(); // Confirmamos todo
+    return { exito: true, objeto: producto.nombre, cantidad: cantidad, costo: costoTotal };
 
   } catch (error) {
+    await connection.rollback();
     console.error('Error en procesarCompra:', error);
-    throw error;
+    return { error: 'db_error' };
+  } finally {
+    connection.release(); // Liberamos la conexión
   }
 }
 

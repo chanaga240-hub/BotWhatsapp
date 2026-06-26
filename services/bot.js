@@ -179,6 +179,8 @@ class BotManager extends EventEmitter {
         textoMinuscula === '#shop' ||
         textoMinuscula.startsWith('#buy') ||
         textoMinuscula.startsWith('#pay') ||
+        textoMinuscula.startsWith('#inventario') ||
+        textoMinuscula.startsWith('#use') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -231,6 +233,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#buy')) {
           const { handleBuy } = require('../commands/buy');
           return await handleBuy(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #inventario
+        // ==========================================
+        if (textoMinuscula.startsWith('#inventario')) {
+          const { handleInventario } = require('../commands/inventario');
+          return await handleInventario(msg);
         }
 
         // ==========================================
@@ -357,6 +367,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula === '#shop') {
           const { handleShop } = require('../commands/shop');
           return await handleShop(msg);
+        }
+
+        // ==========================================
+        // COMANDO: #use
+        // ==========================================
+        if (textoMinuscula.startsWith('#use')) {
+          const { handleUse } = require('../commands/use');
+          return await handleUse(msg, texto);
         }
 
         // ==========================================
