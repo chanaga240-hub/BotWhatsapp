@@ -209,13 +209,20 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       const defensor = turnoJugador ? p2 : p1;
 
       // ---------------------------------------------
-      // SISTEMA DE ESQUIVE (Velocidad + Bono Nivel)
+      // SISTEMA DE ESQUIVE (Velocidad + Bono Nivel con Límite)
       // ---------------------------------------------
       let probEsquivarBase = defensor.vel / 20; // Fórmula base
-      let diffNivel = defensor.nivel - atacante.nivel; // Diferencia de nivel
-      let bonoNivel = diffNivel > 0 ? diffNivel : 0; // +1% por cada nivel superior
       
+      // +1% por cada nivel alcanzado después del nivel 1
+      let bonoNivel = defensor.nivel > 1 ? (defensor.nivel - 1) : 0; 
+      
+      // Sumamos la velocidad y el bono de nivel
       let probTotalEsquive = probEsquivarBase + bonoNivel;
+      
+      // 🛡️ LÍMITE DE SEGURIDAD: Nunca podrá esquivar más del 30% de las veces
+      if (probTotalEsquive > 30) {
+        probTotalEsquive = 30;
+      }
       
       const dadoEsquivar = Math.random() * 100;
 

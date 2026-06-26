@@ -1,0 +1,36 @@
+Actúa como un diseñador gráfico experto en interfaces de videojuegos. Necesito actualizar la imagen de mi catálogo de tienda Pokémon.
+
+Objetivo: La imagen debe mantener exactamente el mismo estilo visual, paleta de colores, tipografía y diseño minimalista que la versión actual. Sin embargo, necesito que agregues visualmente tres nuevos comandos de la tienda al catálogo, manteniendo los anteriores intactos.
+
+Elementos a conservar:
+
+
+
+El diseño general de la interfaz y la estética de 'videojuego retro/moderno'.
+
+Los comandos ya existentes en la imagen.
+
+Elementos a implementar (nuevos):
+
+Por favor, diseña o integra de forma elegante los espacios para estos 3 nuevos comandos:
+
+
+
+#pokejob: Descripción: 'Realiza trabajos rápidos por la región y gana monedas'.
+
+#shop: Descripción: 'Accede al catálogo completo de objetos'.
+
+#buy (código) (cantidad): Descripción: 'Compra objetos usando su código'.
+
+#pay @user (cantidad): Descripción: 'Transfiere monedas a otros entrenadores'.
+
+Instrucciones adicionales:
+
+
+
+La disposición debe ser limpia y fácil de leer en pantallas móviles.
+
+Asegúrate de que los nuevos elementos se vean nativos, como si siempre hubieran estado ahí.
+
+La calidad debe ser alta y profesional. 
+

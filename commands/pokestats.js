@@ -19,7 +19,7 @@ async function handlePokeStats(msg, targetId = null) {
     const experiencia = usuario.experiencia || 0;
     const pokeballs = usuario.pokeballs || 0;
     const nombre = usuario.nombre_whatsapp || 'Entrenador';
-    const Monedas = usuario.Monedas || 0;
+    const Monedas = usuario.monedas || 0;
 
     const mensaje =
       `📊 *ESTADÍSTICAS DE ENTRENADOR* 📊\r\n` +
@@ -27,7 +27,7 @@ async function handlePokeStats(msg, targetId = null) {
       `👤 *Nombre:* ${nombre}\r\n` +
       `🏅 *Nivel:* ${nivel}\r\n` +
       `⭐ *Experiencia:* ${experiencia} EXP\r\n` +
-      `💰 *Monedas:* ${Monedas}\r\n` +
+      `💰 *Monedas:* ${Monedas} $\r\n` +
       `🎒 *Pokéballs:* ${pokeballs}\r\n` +
       `📦 *Pokémon capturados:* ${totalCapturas}`;
 

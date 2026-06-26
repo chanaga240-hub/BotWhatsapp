@@ -176,6 +176,9 @@ class BotManager extends EventEmitter {
         textoMinuscula === '#pokejob' ||
         textoMinuscula.startsWith('#pokestats') ||
         textoMinuscula.startsWith('#pokemonstats') ||
+        textoMinuscula === '#shop' ||
+        textoMinuscula.startsWith('#buy') ||
+        textoMinuscula.startsWith('#pay') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -220,6 +223,22 @@ class BotManager extends EventEmitter {
         if (textoMinuscula === '#pokejob') {
           const { handlePokeJob } = require('../commands/pokejob');
           return await handlePokeJob(msg);
+        }
+
+        // ==========================================
+        // COMANDO: #buy
+        // ==========================================
+        if (textoMinuscula.startsWith('#buy')) {
+          const { handleBuy } = require('../commands/buy');
+          return await handleBuy(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #pay
+        // ==========================================
+        if (textoMinuscula.startsWith('#pay')) {
+          const { handlePay } = require('../commands/pay');
+          return await handlePay(msg, textoMinuscula);
         }
 
         // ==========================================
@@ -330,6 +349,14 @@ class BotManager extends EventEmitter {
             console.error('Error al invocar pokémon salvaje:', err);
             return await msg.reply('⚠️ Error al invocar el Pokémon desde la PokéAPI.');
           }
+        }
+
+        // ==========================================
+        // COMANDO: #shop
+        // ==========================================
+        if (textoMinuscula === '#shop') {
+          const { handleShop } = require('../commands/shop');
+          return await handleShop(msg);
         }
 
         // ==========================================
@@ -497,7 +524,7 @@ class BotManager extends EventEmitter {
             } else {
               await pokemonService.restarPokeball(usuario.id);
               const porcentajeExito = Math.round(probabilidadExito * 100);
-              return await msg.reply(`💨 El Pokémon se moved bruscamente y la Pokéball falló. (Ratio: ${porcentajeExito}%) ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
+              return await msg.reply(`💨 El Pokémon se movio bruscamente y la Pokéball falló. (Ratio: ${porcentajeExito}%) ¡Sigue intentando! (Te quedan: ${usuario.pokeballs - 1})`);
             }
           } catch (err) {
             this.log(`Error en #capture: ${err.message}`, 'error');
