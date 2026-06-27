@@ -178,27 +178,39 @@ function randomPokemonId() {
 
 async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
   let multiplicadorTotal = 1;
-  // Convertimos a arreglo para evitar errores si llega un solo texto
   const tipos = Array.isArray(tiposDefensor) ? tiposDefensor : [tiposDefensor];
 
-  for (const tipoD of tipos) {
+  if (tipos.length === 0) return 1;
+
   try {
-    // Usamos un JOIN para conectar los nombres con los IDs
-    const [rel] = await db.execute(`
+    // 1. OPTIMIZACIÓN SQL: Preparamos los placeholders (?, ?) según la cantidad de tipos del defensor
+    const placeholders = tipos.map(() => '?').join(',');
+    const queryParams = [tipoAtacante, ...tipos];
+
+    // Hacemos un solo viaje a la BD usando IN ()
+    const [relaciones] = await db.execute(`
       SELECT r.multiplicador 
       FROM tipos_relaciones r
       JOIN tipos_pokemon t_at ON r.tipo_atacante_id = t_at.id
       JOIN tipos_pokemon t_def ON r.tipo_defensor_id = t_def.id
-      WHERE t_at.nombre = ? AND t_def.nombre = ?
-    `, [tipoAtacante, tipoD]); // Aquí seguimos pasando los nombres ('fire', 'grass', etc.)
+      WHERE t_at.nombre = ? AND t_def.nombre IN (${placeholders})
+    `, queryParams); 
     
-    if (rel.length > 0) {
-      multiplicadorTotal *= parseFloat(rel[0].multiplicador);
+    // Multiplicamos los resultados obtenidos
+    for (const rel of relaciones) {
+      multiplicadorTotal *= parseFloat(rel.multiplicador);
     }
+
+    // 2. CORRECCIÓN MATEMÁTICA: Si hay un Súper Eficaz (1.25) y un Poco Eficaz (0.75)
+    // el resultado es 0.9375. Lo forzamos a 1 para que sea un ataque Neutral perfecto.
+    if (multiplicadorTotal === 0.9375) {
+      multiplicadorTotal = 1;
+    }
+
   } catch (error) {
     console.error(`Error consultando multiplicador BD:`, error);
   }
-}
+
   return multiplicadorTotal;
 }
 

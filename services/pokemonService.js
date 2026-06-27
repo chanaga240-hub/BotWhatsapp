@@ -433,7 +433,7 @@ async function asignarEquipoPokemon(whatsappId, jerarquia, nombrePokemon) {
 async function obtenerEquipoPokemon(whatsappId) {
   try {
     const query = `
-      SELECT ep.jerarquia, ep.estado, pa.nombre, pa.nivel
+      SELECT ep.jerarquia, ep.estado, pa.id AS atrapado_id, pa.pokemon_id, pa.nombre, pa.nivel, pa.fecha_ultimo_combate
       FROM equipo_pokemon ep
       JOIN usuarios u ON ep.usuario_id = u.id
       JOIN pokemon_atrapados pa ON ep.pokemon_id = pa.id
@@ -445,6 +445,32 @@ async function obtenerEquipoPokemon(whatsappId) {
   } catch (error) {
     console.error('Error al obtener equipo:', error);
     return [];
+  }
+}
+
+async function cambiarEstadoEquipo(whatsappId, jerarquia, nuevoEstado) {
+  try {
+    await db.execute(`
+      UPDATE equipo_pokemon ep
+      JOIN usuarios u ON ep.usuario_id = u.id
+      SET ep.estado = ?
+      WHERE u.whatsapp_id = ? AND ep.jerarquia = ?
+    `, [nuevoEstado, whatsappId, jerarquia]);
+  } catch (error) {
+    console.error('Error al cambiar estado en equipo:', error);
+  }
+}
+
+async function reactivarEquipoCompleto(whatsappId) {
+  try {
+    await db.execute(`
+      UPDATE equipo_pokemon ep
+      JOIN usuarios u ON ep.usuario_id = u.id
+      SET ep.estado = 'activo'
+      WHERE u.whatsapp_id = ?
+    `, [whatsappId]);
+  } catch (error) {
+    console.error('Error al reactivar equipo:', error);
   }
 }
 
@@ -462,5 +488,7 @@ module.exports = {
   entrenarTodosListos,
   usarPocionXp,
   asignarEquipoPokemon,
-  obtenerEquipoPokemon
+  obtenerEquipoPokemon,
+  cambiarEstadoEquipo,
+  reactivarEquipoCompleto
 };

@@ -261,7 +261,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
           // ND = 0: Se anula TODO el daño
           danioBase = 0;
         } else {
-          // SE = 1.25 (+25%) / PE = 0.75 (-25%)
+          // Calcula el daño con la acumulación de tipos (Ej: 1.25 * 1.25 = 1.56)
           danioBase = Math.floor(danioBase * multiplicadorElemental);
         }
 
@@ -275,13 +275,17 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
         defensor.hp -= danioBase;
         if (defensor.hp < 0) defensor.hp = 0;
 
-        // Generamos el texto extra basado en el multiplicador exacto
+        // Generamos el texto extra identificando dobles debilidades o resistencias
         let extraText = '';
         if (multiplicadorElemental === 0) {
           extraText = ' ¡No tiene ningún efecto! ❌ ';
-        } else if (multiplicadorElemental > 1) {
+        } else if (multiplicadorElemental > 1.25) {
+          extraText = ' ¡Es EXTREMADAMENTE eficaz! 🔥🔥 ';
+        } else if (multiplicadorElemental > 1 && multiplicadorElemental <= 1.25) {
           extraText = ' ¡Es muy eficaz! 🔥 ';
-        } else if (multiplicadorElemental < 1) {
+        } else if (multiplicadorElemental < 0.75 && multiplicadorElemental > 0) {
+          extraText = ' ¡Apenas le hace un rasguño! 🛡️🛡️ ';
+        } else if (multiplicadorElemental < 1 && multiplicadorElemental >= 0.75) {
           extraText = ' No es muy eficaz... 🛡️ ';
         }
 

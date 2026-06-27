@@ -170,6 +170,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokemon') ||
         textoMinuscula.startsWith('#poketeam') ||
         textoMinuscula.startsWith('#pokebatle') || 
+        textoMinuscula.startsWith('#poketeambattle') ||
         textoMinuscula.startsWith('#pokeaccept') ||
         textoMinuscula.startsWith('#poketrain') ||
         textoMinuscula === '#pokedaily' ||
@@ -225,6 +226,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula === '#pokejob') {
           const { handlePokeJob } = require('../commands/pokejob');
           return await handlePokeJob(msg);
+        }
+
+        // ==========================================
+        // COMANDO: #poketeambattle
+        // ==========================================
+        if (textoMinuscula.startsWith('#poketeambattle')) {
+          const { handlePoketeamBattle } = require('../commands/poketeambattle');
+          return await handlePoketeamBattle(msg, texto);
         }
 
         // ==========================================
@@ -380,72 +389,8 @@ class BotManager extends EventEmitter {
         // COMANDO: #pokerealease [nombre]
         // ==========================================
         if (textoMinuscula.startsWith('#pokerealease')) {
-          const nombreBuscado = texto.substring('#pokerealease'.length).trim();
-          if (!nombreBuscado) {
-            return await msg.reply('❌ Indica el nombre del Pokémon que deseas liberar.\n👉 Ejemplo: #pokerealease Pikachu');
-          }
-
-          try {
-            this.log(`[Bot] ${usuario.nombre_whatsapp} solicita liberar: ${nombreBuscado}`, 'info');
-            const poke = await pokemonService.verificarYObtenerPokemon(whatsappId, nombreBuscado);
-            if (!poke) { this.log(`[Bot] No se encontró ${nombreBuscado} en la Pokédex de ${usuario.nombre_whatsapp}.`, 'warn'); return; }
-
-            this.log(`[Bot] Pokémon encontrado en BD: id=${poke.id} especie=${poke.nombre} nivel=${poke.nivel}`, 'info');
-
-            const liberado = await pokemonService.liberarPokemon(poke.id);
-            if (!liberado) { this.log(`[Bot] No se pudo liberar el pokémon ${nombreBuscado}.`, 'error'); return; }
-
-            this.log(`[Bot] Pokémon liberado en BD: id=${liberado.id} pokemon_id=${liberado.pokemon_id}`, 'info');
-
-            const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
-            let dataApi = null;
-            let captureRate = 45;
-            try { dataApi = await consultarPokemon(liberado.pokemon_id); } catch (err) { dataApi = null; }
-            if (dataApi) {
-              try { captureRate = await getCaptureRate(dataApi); } catch (err) { captureRate = 45; }
-            }
-
-            const nombreMostrar = liberado.nombre || (dataApi ? dataApi.name : `#${liberado.pokemon_id}`);            const tipos = dataApi ? getTiposEspanol(dataApi) : null;
-            const urlImagen = dataApi ? getImagen(dataApi) : null;
-            const probabilidadExito = calcularProbabilidadCaptura(captureRate);
-
-            global.pokemonSalvajeActivo = {
-              id: liberado.pokemon_id,
-              nombre: nombreMostrar,
-              nivel: liberado.nivel,
-              experiencia: liberado.experiencia,
-              origen: 'liberado',
-              dueño_anterior: usuario.nombre_whatsapp || whatsappId,
-            };
-
-            const mensaje =
-              `⚠️ *¡POKÉMON LIBERADO!* ⚠️\n\n` +
-              `👤 *Liberado por:* ${usuario.nombre_whatsapp}\n` +
-              `👾 *Especie:* ${nombreMostrar} (Nº ${liberado.pokemon_id})\n` +
-              (tipos ? `🏷️ *Tipo:* [ *${tipos}* ]\n` : '') +
-              `📊 *Dificultad de captura:* ${Math.round(probabilidadExito)}%\n` +
-              `🔢 *Nivel:* ${liberado.nivel || 1} · *EXP:* ${liberado.experiencia || 0}\n\n` +
-              `¡Este Pokémon ha quedado salvaje en los grupos permitidos. Intenta atraparlo con:\n👉 *#capture*`;
-
-            for (const groupId of this.GRUPOS_PERMITIDOS) {
-              try {
-                await this.client.sendMessage(groupId, mensaje);
-                this.log(`[Bot] Notificado liberado a grupo ${groupId}`, 'info');
-                if (urlImagen) {
-                  const media = await MessageMedia.fromUrl(urlImagen, { unsafeMime: true });
-                  if (media) await this.client.sendMessage(groupId, media, { sendMediaAsSticker: true, stickerName: nombreMostrar });
-                }
-              } catch (err) {
-                this.log(`[Sistema] Error notificando liberado en ${groupId}: ${err.message}`, 'error');
-              }
-            }
-
-            this.log(`[Bot] ${usuario.nombre_whatsapp} liberó a ${nombreMostrar} (ID ${liberado.pokemon_id}).`, 'info');
-            return;
-          } catch (err) {
-            console.error('Error en #pokerealease:', err);
-            return;
-          }
+          const { handlePokerelease } = require('../commands/pokerelease'); // Asegúrate de la ruta
+          return await handlePokerelease(msg, texto, this, usuario);
         }
 
         // ==========================================
