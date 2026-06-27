@@ -182,6 +182,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pay') ||
         textoMinuscula.startsWith('#inventario') ||
         textoMinuscula.startsWith('#use') ||
+        textoMinuscula.startsWith('#pokeevolucion') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -226,6 +227,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula === '#pokejob') {
           const { handlePokeJob } = require('../commands/pokejob');
           return await handlePokeJob(msg);
+        }
+
+        // ==========================================
+        // COMANDO: #pokeevolucion
+        // ==========================================
+        if (textoMinuscula.startsWith('#pokeevolucion')) {
+          const { handlePokeEvolucion } = require('../commands/pokeevolucion');
+          return await handlePokeEvolucion(msg, textoMinuscula);
         }
 
         // ==========================================

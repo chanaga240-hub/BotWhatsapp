@@ -214,6 +214,29 @@ async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
   return multiplicadorTotal;
 }
 
+// --- FUNCIONES PARA EVOLUCION ---
+
+async function getEvolucionesInmediatas(pokemon) {
+  // 1. Obtenemos los datos de la especie para encontrar la URL de la cadena
+  const speciesData = await fetchJson(pokemon.species.url);
+  const chainData = await fetchJson(speciesData.evolution_chain.url);
+
+  // 2. Función recursiva para buscar el Pokémon en la cadena y devolver su "evolves_to"
+  function buscarEvoluciones(currentChain, targetName) {
+    if (currentChain.species.name === targetName) {
+      return currentChain.evolves_to.map(evo => evo.species.name);
+    }
+    for (const next of currentChain.evolves_to) {
+      const found = buscarEvoluciones(next, targetName);
+      if (found.length > 0) return found;
+    }
+    return [];
+  }
+
+  return buscarEvoluciones(chainData.chain, pokemon.name);
+}
+
+// Asegúrate de agregar estas funciones al module.exports existente:
 module.exports = {
   consultarPokemon,
   getNombreEspanol,
@@ -226,5 +249,6 @@ module.exports = {
   getAudioGrito,
   getCaptureRate,
   calcularProbabilidadCaptura,
-  obtenerMultiplicadorLocal
+  obtenerMultiplicadorLocal,
+  getEvolucionesInmediatas 
 };
