@@ -1140,7 +1140,7 @@ body {
   min-width: 0;
 }
 
-..stat-label {
+.stat-label {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: 0.7rem;
