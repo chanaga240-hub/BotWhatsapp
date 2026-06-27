@@ -234,7 +234,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
         // SELECCIÓN ALEATORIA DE TIPO DE ATAQUE
         // ---------------------------------------------
         const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
-        const tiposDefensor = defensor.tipos; // Le pasamos el arreglo completo
+        const tiposDefensor = defensor.tipos; // El defensor solo recibe, no consulta
 
         // ---------------------------------------------
         // CÁLCULO DE DAÑO CON MULTIPLICADORES
@@ -244,7 +244,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
           danioBase = Math.floor(Math.random() * 8) + 12;
         }
 
-        // Aplicamos el multiplicador elemental (CON AWAIT)
+        // El atacante consulta la tabla de relaciones
         let multiplicadorElemental = 1;
         try {
           multiplicadorElemental = await obtenerMultiplicadorLocal(tipoElegido, tiposDefensor);
@@ -256,21 +256,39 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
           console.error(`Error al calcular multiplicador:`, err);
         }
 
-        danioBase = Math.floor(danioBase * multiplicadorElemental);
+        // Aplicamos la lógica de porcentajes e inmunidades
+        if (multiplicadorElemental === 0) {
+          // ND = 0: Se anula TODO el daño
+          danioBase = 0;
+        } else {
+          // SE = 1.25 (+25%) / PE = 0.75 (-25%)
+          danioBase = Math.floor(danioBase * multiplicadorElemental);
+        }
 
-        const esCritico = Math.random() < 0.15;
-        if (esCritico) danioBase = Math.floor(danioBase * 1.5);
+        // Solo puede haber golpe crítico si el ataque realmente generó daño
+        let esCritico = false;
+        if (danioBase > 0) {
+          esCritico = Math.random() < 0.15;
+          if (esCritico) danioBase = Math.floor(danioBase * 1.5);
+        }
 
         defensor.hp -= danioBase;
         if (defensor.hp < 0) defensor.hp = 0;
 
+        // Generamos el texto extra basado en el multiplicador exacto
         let extraText = '';
-        if (multiplicadorElemental > 1) extraText = ' ¡Es muy eficaz! 🔥 ';
-        else if (multiplicadorElemental < 1) extraText = ' No es muy eficaz... 🛡️ ';
+        if (multiplicadorElemental === 0) {
+          extraText = ' ¡No tiene ningún efecto! ❌ ';
+        } else if (multiplicadorElemental > 1) {
+          extraText = ' ¡Es muy eficaz! 🔥 ';
+        } else if (multiplicadorElemental < 1) {
+          extraText = ' No es muy eficaz... 🛡️ ';
+        }
 
         cronica +=
           `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
-          `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${extraText}Genera *${danioBase}* de daño a ${defensor.nombre}.\r\n` +
+          `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${extraText}` +
+          `${danioBase > 0 ? `Genera *${danioBase}* de daño a ${defensor.nombre}.` : `*${defensor.nombre}* resultó ileso.`}\r\n` +
           `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;
       }
 

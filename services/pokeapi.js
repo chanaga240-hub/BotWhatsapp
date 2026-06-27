@@ -182,20 +182,23 @@ async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
   const tipos = Array.isArray(tiposDefensor) ? tiposDefensor : [tiposDefensor];
 
   for (const tipoD of tipos) {
-    try {
-      // Usamos db.execute como en tu usuarioService
-      const [rel] = await db.execute(
-        "SELECT multiplicador FROM tipos_relaciones WHERE tipo_atacante = ? AND tipo_defensor = ?",
-        [tipoAtacante, tipoD]
-      );
-      
-      if (rel.length > 0) {
-        multiplicadorTotal *= parseFloat(rel[0].multiplicador);
-      }
-    } catch (error) {
-      console.error(`Error consultando multiplicador BD (${tipoAtacante} vs ${tipoD}):`, error);
+  try {
+    // Usamos un JOIN para conectar los nombres con los IDs
+    const [rel] = await db.execute(`
+      SELECT r.multiplicador 
+      FROM tipos_relaciones r
+      JOIN tipos_pokemon t_at ON r.tipo_atacante_id = t_at.id
+      JOIN tipos_pokemon t_def ON r.tipo_defensor_id = t_def.id
+      WHERE t_at.nombre = ? AND t_def.nombre = ?
+    `, [tipoAtacante, tipoD]); // Aquí seguimos pasando los nombres ('fire', 'grass', etc.)
+    
+    if (rel.length > 0) {
+      multiplicadorTotal *= parseFloat(rel[0].multiplicador);
     }
+  } catch (error) {
+    console.error(`Error consultando multiplicador BD:`, error);
   }
+}
   return multiplicadorTotal;
 }
 

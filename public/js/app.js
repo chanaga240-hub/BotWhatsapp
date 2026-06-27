@@ -320,7 +320,7 @@ window.viewPokedex = async function(usuarioId, nombre) {
               </div>
               <div class="pokedex-card-body">
                 <div class="pokedex-card-header">
-                  <strong>${escapeHtml(poke.nombre)}</strong>
+                  <strong>${escapeHtml(poke.nombre)} - ${poke.pokemon_id}</strong>
                   <div class="pokedex-card-meta">
                     <span>Nivel ${poke.nivel || 1}</span>
                     <span>${poke.experiencia != null ? `${poke.experiencia} EXP` : '—'}</span>

@@ -115,6 +115,7 @@ app.get('/api/pokedex/:usuarioId', async (req, res) => {
           nombre: p.nombre,
           imagen: data.sprites?.front_default || data.sprites?.other?.['official-artwork']?.front_default || null,
           nivel: p.nivel || 1,
+          pokemon_id: p.pokemon_id,
           experiencia: p.experiencia || 0,
           stats: data.stats.map((stat) => ({
             name: stat.stat.name,

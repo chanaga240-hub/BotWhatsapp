@@ -34,7 +34,7 @@ class BotManager extends EventEmitter {
     for (const groupId of this.GRUPOS_PERMITIDOS) {
       try {
         const data = await consultarPokemon(randomPokemonId());
-        const nombre = await getNombreEspanol(data);
+        const nombre = data.name;
         const urlImagen = getImagen(data);
         const captureRate = await getCaptureRate(data);
         const probabilidadExito = calcularProbabilidadCaptura(captureRate);
@@ -283,17 +283,16 @@ class BotManager extends EventEmitter {
           await configuracionService.actualizarUltimoEnvio('Envio_Pokemon_Salvaje');
 
           // 3. Ejecutamos la lógica de generación del Pokémon salvaje
-          const { consultarPokemon, getImagen, getNombreEspanol, getTiposEspanol, randomPokemonId, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
+          const { consultarPokemon, getImagen, getTiposEspanol, randomPokemonId, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
 
           try {
             const randomId = randomPokemonId();
             const data = await consultarPokemon(randomId);
 
-            const [nombre, tipos] = await Promise.all([
-              getNombreEspanol(data),
-              Promise.resolve(getTiposEspanol(data)),
-            ]);
-
+            // SUSTITUIMOS LA PROMESA DE TRADUCCIÓN POR EL NOMBRE DIRECTO DE LA API
+            const nombre = data.name; 
+            const tipos = getTiposEspanol(data);
+            
             const captureRate = await getCaptureRate(data);
             const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
@@ -406,8 +405,7 @@ class BotManager extends EventEmitter {
               try { captureRate = await getCaptureRate(dataApi); } catch (err) { captureRate = 45; }
             }
 
-            const nombreMostrar = liberado.nombre || (dataApi ? await getNombreEspanol(dataApi) : `#${liberado.pokemon_id}`);
-            const tipos = dataApi ? getTiposEspanol(dataApi) : null;
+            const nombreMostrar = liberado.nombre || (dataApi ? dataApi.name : `#${liberado.pokemon_id}`);            const tipos = dataApi ? getTiposEspanol(dataApi) : null;
             const urlImagen = dataApi ? getImagen(dataApi) : null;
             const probabilidadExito = calcularProbabilidadCaptura(captureRate);
 
