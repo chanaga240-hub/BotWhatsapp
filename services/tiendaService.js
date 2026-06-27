@@ -32,6 +32,12 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
         precioUnitario: 200,
         tipo: 'inventario'
       };
+    }else if (codigo === '003') {
+      producto = {
+        nombre: "rocas_evolutivas",
+        precioUnitario: 500,
+        tipo: 'inventario'
+      };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
