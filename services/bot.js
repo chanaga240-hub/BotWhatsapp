@@ -168,7 +168,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#capture') ||       
         textoMinuscula.startsWith('#pokedex') ||  
         textoMinuscula.startsWith('#pokemon') ||
-        textoMinuscula === '#poketeam' ||
+        textoMinuscula.startsWith('#poketeam') ||
         textoMinuscula.startsWith('#pokebatle') || 
         textoMinuscula.startsWith('#pokeaccept') ||
         textoMinuscula.startsWith('#poketrain') ||
@@ -634,6 +634,14 @@ class BotManager extends EventEmitter {
             console.error('Error en el comando #pokedex:', err);
             return await msg.reply('⚠️ Hubo un error al procesar tu Pokédex.');
           }
+        }
+
+        // ==========================================
+        // COMANDO: #poketeam
+        // ==========================================
+        if (textoMinuscula.startsWith('#poketeam')) {
+          const { handlePoketeam } = require('../commands/poketeam');
+          return await handlePoketeam(msg, texto);
         }
 
         // ==========================================

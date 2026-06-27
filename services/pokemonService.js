@@ -379,6 +379,75 @@ async function usarPocionXp(whatsappId, nombrePokemon) {
   }
 }
 
+// --- NUEVAS FUNCIONES PARA EL EQUIPO POKÉMON ---
+
+async function asignarEquipoPokemon(whatsappId, jerarquia, nombrePokemon) {
+  // Verificamos si el usuario tiene a este Pokémon
+  const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
+  if (!pokemon) return { error: 'pokemon_no_encontrado' };
+
+  const usuarioId = pokemon.usuario_id;
+  const pokemonAtrapadoId = pokemon.id;
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Verificamos si este Pokémon EXACTO ya está en OTRA posición del equipo
+    const [existente] = await connection.execute(
+      'SELECT jerarquia FROM equipo_pokemon WHERE usuario_id = ? AND pokemon_id = ?',
+      [usuarioId, pokemonAtrapadoId]
+    );
+
+    if (existente.length > 0) {
+      const posicionActual = existente[0].jerarquia;
+      if (posicionActual === jerarquia) {
+        await connection.rollback();
+        return { error: 'ya_en_esa_posicion' };
+      }
+      // Si estaba en otra posición, lo removemos de ahí primero (para evitar clones en el equipo)
+      await connection.execute(
+        'DELETE FROM equipo_pokemon WHERE usuario_id = ? AND pokemon_id = ?',
+        [usuarioId, pokemonAtrapadoId]
+      );
+    }
+
+    // Insertamos o reemplazamos el Pokémon en la jerarquía (El UNIQUE KEY maneja el reemplazo)
+    await connection.execute(`
+      INSERT INTO equipo_pokemon (usuario_id, pokemon_id, jerarquia)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE pokemon_id = VALUES(pokemon_id)
+    `, [usuarioId, pokemonAtrapadoId, jerarquia]);
+
+    await connection.commit();
+    return { success: true, pokemon: pokemon.nombre, jerarquia };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al asignar equipo:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
+async function obtenerEquipoPokemon(whatsappId) {
+  try {
+    const query = `
+      SELECT ep.jerarquia, ep.estado, pa.nombre, pa.nivel
+      FROM equipo_pokemon ep
+      JOIN usuarios u ON ep.usuario_id = u.id
+      JOIN pokemon_atrapados pa ON ep.pokemon_id = pa.id
+      WHERE u.whatsapp_id = ?
+      ORDER BY ep.jerarquia ASC
+    `;
+    const [rows] = await db.execute(query, [whatsappId]);
+    return rows;
+  } catch (error) {
+    console.error('Error al obtener equipo:', error);
+    return [];
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -391,5 +460,7 @@ module.exports = {
   transferirPokemon,
   obtenerPokemonParaEntrenamiento,
   entrenarTodosListos,
-  usarPocionXp
+  usarPocionXp,
+  asignarEquipoPokemon,
+  obtenerEquipoPokemon
 };
