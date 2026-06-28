@@ -4,6 +4,11 @@ const { replyText } = require('../services/reply');
 
 async function handlePokeTrain(msg, nombrePokemon) {
   try {
+
+    if (msg.from.endsWith('@g.us')) {
+      return await replyText(msg, '⛔ *Acceso Denegado*\nEl comando `#poketrain` solo se puede utilizar en chat privado (3112783473)');
+    }
+
     const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
     const nombreBuscado = (nombrePokemon || msg.body?.replace(/^#poketrain/i, '') || '').trim();
 

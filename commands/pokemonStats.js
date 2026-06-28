@@ -25,6 +25,8 @@ async function handlePokemonStats(msg) {
     }
 
     const pokedexId = dataApi.id;
+    
+    // 1. Obtenemos las estadísticas base puras
     const stats = {
       hp: getStat(dataApi, 'hp') || 0,
       atk: getStat(dataApi, 'attack') || 0,
@@ -34,7 +36,27 @@ async function handlePokemonStats(msg) {
       spDef: getStat(dataApi, 'special-defense') || 0,
     };
 
-    let probEsquive = (stats.vel / 20) + (pokeDB.nivel > 1 ? pokeDB.nivel - 1 : 0);
+    // 2. Calculamos el multiplicador según el nivel actual del Pokémon
+    const nivelActual = pokeDB.nivel || 1;
+    const multNivel = 1 + (nivelActual - 1) * 0.05;
+
+    // 3. Calculamos los totales usando las fórmulas de tu sistema de combate
+    const hpTotal = Math.floor(stats.hp * 2 * multNivel);
+    const atkTotal = Math.floor(stats.atk * multNivel);
+    const defTotal = Math.floor(stats.def * multNivel);
+    const spAtkTotal = Math.floor(stats.spAtk * multNivel);
+    const spDefTotal = Math.floor(stats.spDef * multNivel);
+    const velTotal = Math.floor(stats.vel * multNivel);
+
+    // 4. Calculamos el "aumento" (la diferencia entre el total y la base)
+    const bonoHp = hpTotal - stats.hp;
+    const bonoAtk = atkTotal - stats.atk;
+    const bonoDef = defTotal - stats.def;
+    const bonoSpAtk = spAtkTotal - stats.spAtk;
+    const bonoSpDef = spDefTotal - stats.spDef;
+    const bonoVel = velTotal - stats.vel;
+
+    let probEsquive = (stats.vel / 20) + (nivelActual > 1 ? nivelActual - 1 : 0);
     if (probEsquive > 30) probEsquive = 30;
 
     const fechaFormateada = new Date(pokeDB.atrapado_en).toLocaleString('es-CO', {
@@ -48,25 +70,26 @@ async function handlePokemonStats(msg) {
 
     const tipos = await Promise.resolve(getTiposEspanol(dataApi));
 
+    // 5. Construimos el mensaje mostrando Base + Bono = Total
     const mensaje = 
       `📊 *ESTADÍSTICAS INDIVIDUALES* 📊\r\n` +
       `────────────────────────\r\n` +
       `📝 *DATOS DE TU EJEMPLAR:*\r\n` +
       `👤 *Nombre:* ${pokeDB.nombre}\r\n` +
-      `🏅 *Nivel:* ${pokeDB.nivel || 1}\r\n` +
+      `🏅 *Nivel:* ${nivelActual}\r\n` +
       `⭐ *Experiencia:* ${pokeDB.experiencia || 0} EXP\r\n` +
       `⚔️ *Combates Realizados:* ${pokeDB.combates || 0}\r\n` +
       `📅 *Capturado el:* ${fechaFormateada}\r\n` +
       `────────────────────────\r\n` +
-      `🧬 *ESTADÍSTICAS BASE DE ESPECIE:*\r\n` +
+      `🧬 *ESTADÍSTICAS ACTUALES (Base + Nivel):*\r\n` +
       `🔢 *Nº Pokedex:* #${pokedexId}\r\n` +
       `🏷️ *Tipo:* [ *${tipos}* ]\r\n` +
-      `❤️ *HP Base:* ${stats.hp}\r\n` +
-      `⚔️ *Ataque Base:* ${stats.atk}\r\n` +
-      `🛡️ *Defensa Base:* ${stats.def}\r\n` +
-      `💥 *Atk. Especial:* ${stats.spAtk}\r\n` +
-      `🔰 *Def. Especial:* ${stats.spDef}\r\n` +
-      `⚡ *Velocidad:* ${stats.vel}\r\n` +
+      `❤️ *HP:* ${stats.hp} + ${bonoHp} = *${hpTotal}*\r\n` +
+      `⚔️ *Ataque:* ${stats.atk} + ${bonoAtk} = *${atkTotal}*\r\n` +
+      `🛡️ *Defensa:* ${stats.def} + ${bonoDef} = *${defTotal}*\r\n` +
+      `💥 *Atk. Especial:* ${stats.spAtk} + ${bonoSpAtk} = *${spAtkTotal}*\r\n` +
+      `🔰 *Def. Especial:* ${stats.spDef} + ${bonoSpDef} = *${spDefTotal}*\r\n` +
+      `⚡ *Velocidad:* ${stats.vel} + ${bonoVel} = *${velTotal}*\r\n` +
       `💨 *Prob. de Esquivar:* ${probEsquive.toFixed(1)}%`; 
 
     await msg.reply(mensaje);
