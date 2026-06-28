@@ -221,7 +221,11 @@ async function getEvolucionesInmediatas(pokemon) {
   const speciesData = await fetchJson(pokemon.species.url);
   const chainData = await fetchJson(speciesData.evolution_chain.url);
 
-  // 2. Función recursiva para buscar el Pokémon en la cadena y devolver su "evolves_to"
+  // IMPORTANTE: Usamos el nombre de la especie, no el del Pokémon actual.
+  // Así evitamos errores si el jugador consultó "lechonk-female".
+  const targetSpeciesName = speciesData.name;
+
+  // 2. Función recursiva para buscar la especie en la cadena
   function buscarEvoluciones(currentChain, targetName) {
     if (currentChain.species.name === targetName) {
       return currentChain.evolves_to.map(evo => evo.species.name);
@@ -233,7 +237,26 @@ async function getEvolucionesInmediatas(pokemon) {
     return [];
   }
 
-  return buscarEvoluciones(chainData.chain, pokemon.name);
+  const especiesEvolucion = buscarEvoluciones(chainData.chain, targetSpeciesName);
+
+  // 3. Consultamos las "varieties" (formas/géneros) de cada especie encontrada
+  const evolucionesCompletas = [];
+  
+  for (const especie of especiesEvolucion) {
+    try {
+      const evoSpeciesData = await fetchJson(`https://pokeapi.co/api/v2/pokemon-species/${especie}`);
+      
+      // Extraemos el nombre exacto de la API para cada variedad
+      for (const variedad of evoSpeciesData.varieties) {
+        evolucionesCompletas.push(variedad.pokemon.name);
+      }
+    } catch (err) {
+      // Si falla la consulta extra, dejamos el nombre base como respaldo
+      evolucionesCompletas.push(especie);
+    }
+  }
+
+  return evolucionesCompletas;
 }
 
 // Asegúrate de agregar estas funciones al module.exports existente:
