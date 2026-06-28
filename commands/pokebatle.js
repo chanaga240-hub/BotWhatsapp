@@ -4,12 +4,11 @@ const {
   consultarPokemon,
   getStat,
   getImagen,
-  obtenerMultiplicadorLocal // <-- Asegúrate de que esta función se exporte correctamente desde tu servicio
+  obtenerMultiplicadorLocal
 } = require('../services/pokeapi');
 const { replyWithLabeledStickers } = require('../services/reply');
 const pokemonService = require('../services/pokemonService');
 
-// Mapa en memoria para almacenar los desafíos pendientes
 const desafiosPendientes = new Map();
 
 function getNombreRemitente(msg) {
@@ -28,7 +27,6 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.\n👉 Ejemplo: `#pokebatle @Marco Pikachu`');
     }
 
-    // Limpiamos el ID del retador de sufijos de dispositivo (:66)
     const idRetador = (msg.author || msg.from).split('@')[0].split(':')[0];
 
     const objetosMenciones = await msg.getMentions();
@@ -38,7 +36,6 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.');
     }
 
-    // Limpiamos el ID del rival
     const idRival = msg.mentionedIds[0].split('@')[0].split(':')[0];
 
     if (idRetador === idRival) {
@@ -58,7 +55,6 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply(`❌ No tienes a ningún *${nombrePokemonBuscado}* registrado en tu Pokédex.`);
     }
 
-    // Verificar cooldown por combate (5 minutos)
     try {
       const cooldownMs = 5 * 60 * 1000;
       if (pokeInventarioRetador.fecha_ultimo_combate) {
@@ -79,7 +75,6 @@ async function handlePokebatle(msg, argsText = '') {
     const nombreRetadorText = getNombreRemitente(msg);
     const nombreRivalText = contactoRival.pushname || contactoRival.name || 'Entrenador';
 
-    // Registramos el desafío usando el ID base limpio
     desafiosPendientes.set(idRival, {
       idRetador,
       nombreRetadorText,
@@ -103,10 +98,8 @@ async function handlePokebatle(msg, argsText = '') {
 
 async function handlePokeaccept(msg, pokemonRivalNombre = '') {
   try {
-    // Limpiamos el sufijo del ID de quien acepta (:66) para que coincida con el mapa
     const idRival = (msg.author || msg.from).split('@')[0].split(':')[0];
 
-    // Ahora sí coincidirán las llaves en la memoria
     if (!desafiosPendientes.has(idRival)) {
       return await msg.reply('❌ No tienes ningún desafío de batalla pendiente por aceptar.');
     }
@@ -126,10 +119,8 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
 
     await msg.reply(`⏳ ¡Desafío aceptado! Preparando el campo de batalla para *${desafio.pokemonRetador.nombre}* vs *${pokeInventarioRival.nombre}*...`);
 
-    // Verificar cooldowns para ambos Pokémon (retador y rival)
     try {
       const cooldownMs = 5 * 60 * 1000;
-      // Re-consultar el Pokémon del retador en base de datos (podría haber cambiado)
       const pokeRetadorActual = await pokemonService.verificarYObtenerPokemon(desafio.idRetador, desafio.pokemonRetador.nombre);
       if (pokeRetadorActual && pokeRetadorActual.fecha_ultimo_combate) {
         const ultima = new Date(pokeRetadorActual.fecha_ultimo_combate);
@@ -169,26 +160,29 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     const multNivel1 = 1 + (desafio.pokemonRetador.nivel - 1) * 0.05;
     const multNivel2 = 1 + (pokeInventarioRival.nivel - 1) * 0.05;
 
-    // Se agrega el nivel y los tipos al objeto combatiente
+    // --- CAMBIO 1: Se extraen spAtk y spDef de la PokéAPI y se multiplican por el nivel ---
     const p1 = {
       nombre: desafio.pokemonRetador.nombre,
       nivel: desafio.pokemonRetador.nivel,
       hp: Math.floor(getStat(pokeJugador, 'hp') * 2 * multNivel1),
       atk: Math.floor(getStat(pokeJugador, 'attack') * multNivel1),
       def: Math.floor(getStat(pokeJugador, 'defense') * multNivel1),
+      spAtk: Math.floor(getStat(pokeJugador, 'special-attack') * multNivel1), 
+      spDef: Math.floor(getStat(pokeJugador, 'special-defense') * multNivel1),
       vel: Math.floor(getStat(pokeJugador, 'speed') * multNivel1),
-      tipos: pokeJugador.types.map(t => t.type.name) // <-- NUEVO: Arreglo de tipos del retador
+      tipos: pokeJugador.types.map(t => t.type.name) 
     };
 
-    // Se agrega el nivel y los tipos al objeto combatiente
     const p2 = {
       nombre: pokeInventarioRival.nombre,
       nivel: pokeInventarioRival.nivel,
       hp: Math.floor(getStat(pokeRival, 'hp') * 2 * multNivel2),
       atk: Math.floor(getStat(pokeRival, 'attack') * multNivel2),
       def: Math.floor(getStat(pokeRival, 'defense') * multNivel2),
+      spAtk: Math.floor(getStat(pokeRival, 'special-attack') * multNivel2), 
+      spDef: Math.floor(getStat(pokeRival, 'special-defense') * multNivel2),
       vel: Math.floor(getStat(pokeRival, 'speed') * multNivel2),
-      tipos: pokeRival.types.map(t => t.type.name) // <-- NUEVO: Arreglo de tipos del defensor
+      tipos: pokeRival.types.map(t => t.type.name) 
     };
 
     const hpMaxP1 = p1.hp;
@@ -212,13 +206,8 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       const atacante = turnoJugador ? p1 : p2;
       const defensor = turnoJugador ? p2 : p1;
 
-      // ---------------------------------------------
-      // SISTEMA DE ESQUIVE (Velocidad + Bono Nivel con Límite)
-      // ---------------------------------------------
       let probEsquivarBase = defensor.vel / 20; 
-      
       let bonoNivel = defensor.nivel > 1 ? (defensor.nivel - 1) : 0; 
-      
       let probTotalEsquive = probEsquivarBase + bonoNivel;
       
       if (probTotalEsquive > 30) {
@@ -230,21 +219,25 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       if (dadoEsquivar <= probTotalEsquive) {
         cronica += `• 💨 ¡*${atacante.nombre}* ataca, pero *${defensor.nombre}* logra esquivarlo!\r\n\r\n`;
       } else {
-        // ---------------------------------------------
-        // SELECCIÓN ALEATORIA DE TIPO DE ATAQUE
-        // ---------------------------------------------
         const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
-        const tiposDefensor = defensor.tipos; // El defensor solo recibe, no consulta
+        const tiposDefensor = defensor.tipos;
 
-        // ---------------------------------------------
-        // CÁLCULO DE DAÑO CON MULTIPLICADORES
-        // ---------------------------------------------
-        let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+        // --- CAMBIO 2: Lógica del 30% para ataque especial ---
+        let danioBase = 0;
+        let esAtaqueEspecial = Math.random() < 0.30; 
+        
+        if (esAtaqueEspecial) {
+            // Usa Atk Especial y Def Especial
+            danioBase = Math.floor(atacante.spAtk * 1.4 - defensor.spDef * 0.4);
+        } else {
+            // Usa Atk Físico y Def Física
+            danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+        }
+        
         if (danioBase < 12) {
           danioBase = Math.floor(Math.random() * 8) + 12;
         }
 
-        // El atacante consulta la tabla de relaciones
         let multiplicadorElemental = 1;
         try {
           multiplicadorElemental = await obtenerMultiplicadorLocal(tipoElegido, tiposDefensor);
@@ -256,16 +249,12 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
           console.error(`Error al calcular multiplicador:`, err);
         }
 
-        // Aplicamos la lógica de porcentajes e inmunidades
         if (multiplicadorElemental === 0) {
-          // ND = 0: Se anula TODO el daño
           danioBase = 0;
         } else {
-          // Calcula el daño con la acumulación de tipos (Ej: 1.25 * 1.25 = 1.56)
           danioBase = Math.floor(danioBase * multiplicadorElemental);
         }
 
-        // Solo puede haber golpe crítico si el ataque realmente generó daño
         let esCritico = false;
         if (danioBase > 0) {
           esCritico = Math.random() < 0.15;
@@ -275,7 +264,6 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
         defensor.hp -= danioBase;
         if (defensor.hp < 0) defensor.hp = 0;
 
-        // Generamos el texto extra identificando dobles debilidades o resistencias
         let extraText = '';
         if (multiplicadorElemental === 0) {
           extraText = ' ¡No tiene ningún efecto! ❌ ';
@@ -289,8 +277,11 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
           extraText = ' No es muy eficaz... 🛡️ ';
         }
 
+        // --- CAMBIO 3: Notificar en la crónica si fue un ataque Especial o Físico ---
+        const tipoGolpeText = esAtaqueEspecial ? "un ataque especial de" : "un ataque físico de";
+
         cronica +=
-          `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
+          `• 💥 *${atacante.nombre}* lanza ${tipoGolpeText} tipo *${tipoElegido}*.\r\n` +
           `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${extraText}` +
           `${danioBase > 0 ? `Genera *${danioBase}* de daño a ${defensor.nombre}.` : `*${defensor.nombre}* resultó ileso.`}\r\n` +
           `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;
@@ -347,7 +338,6 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       { label: `🎯 ${desafio.nombreRivalText}: ${p2.nombre}`, url: imgRival, stickerName: p2.nombre },
     ].filter((item) => item.url);
 
-    // Registrar que ambos Pokémon participaron en un combate (fecha + incremento de combates)
     try {
       const promesas = [];
       if (desafio.pokemonRetador && desafio.pokemonRetador.id) promesas.push(pokemonService.registrarCombate(desafio.pokemonRetador.id));
@@ -363,7 +353,5 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     console.error('Error procesando aceptación de pokebatle:', error);
   }
 }
-
-
 
 module.exports = { handlePokebatle, handlePokeaccept };

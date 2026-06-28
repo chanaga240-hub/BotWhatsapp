@@ -107,12 +107,15 @@ async function handlePokechallenge(msg, texto) {
   const multNivelJugador = 1 + (pokeInventario.nivel - 1) * 0.05;
   const multNivelRival = 1 + (desafio.pokemonNivel - 1) * 0.05;
 
+  // --- CAMBIO: Integración de Stats Especiales ---
   const p1 = {
     nombre: pokeInventario.nombre,
     nivel: pokeInventario.nivel,
     hp: Math.floor(getStat(pokeJugador, 'hp') * 2 * multNivelJugador),
     atk: Math.floor(getStat(pokeJugador, 'attack') * multNivelJugador),
     def: Math.floor(getStat(pokeJugador, 'defense') * multNivelJugador),
+    spAtk: Math.floor(getStat(pokeJugador, 'special-attack') * multNivelJugador),
+    spDef: Math.floor(getStat(pokeJugador, 'special-defense') * multNivelJugador),
     vel: Math.floor(getStat(pokeJugador, 'speed') * multNivelJugador),
     tipos: pokeJugador.types.map(t => t.type.name)
   };
@@ -123,6 +126,8 @@ async function handlePokechallenge(msg, texto) {
     hp: Math.floor(getStat(desafio.pokeData, 'hp') * 2 * multNivelRival),
     atk: Math.floor(getStat(desafio.pokeData, 'attack') * multNivelRival),
     def: Math.floor(getStat(desafio.pokeData, 'defense') * multNivelRival),
+    spAtk: Math.floor(getStat(desafio.pokeData, 'special-attack') * multNivelRival),
+    spDef: Math.floor(getStat(desafio.pokeData, 'special-defense') * multNivelRival),
     vel: Math.floor(getStat(desafio.pokeData, 'speed') * multNivelRival),
     tipos: desafio.pokemonTipos
   };
@@ -157,7 +162,17 @@ async function handlePokechallenge(msg, texto) {
       cronica += `• 💨 ¡*${atacante.nombre}* ataca, pero *${defensor.nombre}* logra esquivarlo!\r\n\r\n`;
     } else {
       const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
-      let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+      
+      // --- CAMBIO: Lógica del 30% para ataque especial ---
+      let danioBase = 0;
+      let esAtaqueEspecial = Math.random() < 0.30;
+      
+      if (esAtaqueEspecial) {
+          danioBase = Math.floor(atacante.spAtk * 1.4 - defensor.spDef * 0.4);
+      } else {
+          danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+      }
+      
       if (danioBase < 12) danioBase = Math.floor(Math.random() * 8) + 12;
 
       let multiplicadorElemental = 1;
@@ -185,8 +200,10 @@ async function handlePokechallenge(msg, texto) {
       else if (multiplicadorElemental < 0.75 && multiplicadorElemental > 0) extraText = ' ¡Apenas le hace un rasguño! 🛡️🛡️ ';
       else if (multiplicadorElemental < 1) extraText = ' No es muy eficaz... 🛡️ ';
 
+      const tipoGolpeText = esAtaqueEspecial ? "un ataque especial de" : "un ataque físico de";
+
       cronica +=
-        `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
+        `• 💥 *${atacante.nombre}* lanza ${tipoGolpeText} tipo *${tipoElegido}*.\r\n` +
         `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${extraText}` +
         `${danioBase > 0 ? `Genera *${danioBase}* de daño a ${defensor.nombre}.` : `*${defensor.nombre}* resultó ileso.`}\r\n` +
         `• 🩸 *${defensor.nombre}* disminuye a *${defensor.hp} HP*.\r\n\r\n`;

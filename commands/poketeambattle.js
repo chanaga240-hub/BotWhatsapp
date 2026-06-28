@@ -40,12 +40,15 @@ async function prepararEquipoBatalla(equipoBD) {
         try { dataApi = await consultarPokemon(p.pokemon_id); } catch(e) { continue; }
         
         const multNivel = 1 + ((p.nivel || 1) - 1) * 0.05;
+        // --- CAMBIO: Añadidos spAtk y spDef en la preparación del equipo ---
         equipoPreparado.push({
             ...p,
             hp: Math.floor(getStat(dataApi, 'hp') * 2 * multNivel),
             maxHp: Math.floor(getStat(dataApi, 'hp') * 2 * multNivel),
             atk: Math.floor(getStat(dataApi, 'attack') * multNivel),
             def: Math.floor(getStat(dataApi, 'defense') * multNivel),
+            spAtk: Math.floor(getStat(dataApi, 'special-attack') * multNivel),
+            spDef: Math.floor(getStat(dataApi, 'special-defense') * multNivel),
             vel: Math.floor(getStat(dataApi, 'speed') * multNivel),
             tipos: dataApi.types.map(t => t.type.name),
             urlImagen: getImagen(dataApi)
@@ -89,11 +92,19 @@ async function ejecutarMatchup(battleId, msgContext) {
             // 1. Selección de tipo del atacante
             const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
             
-            // 2. Cálculo base
-            let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+            // 2. Cálculo base con el 30% de probabilidad de ataque especial ---
+            let danioBase = 0;
+            let esAtaqueEspecial = Math.random() < 0.30;
+            
+            if (esAtaqueEspecial) {
+                danioBase = Math.floor(atacante.spAtk * 1.4 - defensor.spDef * 0.4);
+            } else {
+                danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
+            }
+
             if (danioBase < 12) danioBase = Math.floor(Math.random() * 8) + 12;
 
-            // 3. Aplicación de efectividad (Corrección del bug del 0 || 1)
+            // 3. Aplicación de efectividad
             let multiplicador = await obtenerMultiplicadorLocal(tipoElegido, defensor.tipos);
             if (typeof multiplicador !== 'number' || isNaN(multiplicador)) {
                 multiplicador = 1;
@@ -124,7 +135,9 @@ async function ejecutarMatchup(battleId, msgContext) {
             else if (multiplicador < 0.75 && multiplicador > 0) txtEficacia = ' ¡Apenas le hace un rasguño! 🛡️🛡️ ';
             else if (multiplicador < 1) txtEficacia = ' No es muy eficaz... 🛡️ ';
 
-            cronica += `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
+            const tipoGolpeText = esAtaqueEspecial ? "un ataque especial de" : "un ataque físico de";
+
+            cronica += `• 💥 *${atacante.nombre}* lanza ${tipoGolpeText} tipo *${tipoElegido}*.\r\n` +
                        `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${txtEficacia}` +
                        `${danioBase > 0 ? `Daño: *${danioBase}*.` : `${defensor.nombre} resultó ileso.`} 🩸 *${defensor.nombre}* queda con *${defensor.hp} HP*.\r\n`;
         }
