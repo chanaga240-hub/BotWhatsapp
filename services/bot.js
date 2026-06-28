@@ -184,6 +184,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#use') ||
         textoMinuscula.startsWith('#pokeevolucion') ||
         textoMinuscula.startsWith('#pokechallenge') ||
+        textoMinuscula.startsWith('#pokevariantes') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -236,6 +237,15 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#pokeevolucion')) {
           const { handlePokeEvolucion } = require('../commands/pokeevolucion');
           return await handlePokeEvolucion(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #pokevariantes
+        // ==========================================
+        if (textoMinuscula.startsWith('#pokevariantes')) {
+          // CORRECCIÓN: Importar y usar handlePokeVariantes
+          const { handlePokeVariantes } = require('../commands/pokevariantes'); 
+          return await handlePokeVariantes(msg, textoMinuscula);
         }
 
         // ==========================================

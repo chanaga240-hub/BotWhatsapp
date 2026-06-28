@@ -259,6 +259,24 @@ async function getEvolucionesInmediatas(pokemon) {
   return evolucionesCompletas;
 }
 
+async function getVariantesPokemon(pokemon) {
+  const speciesUrl = pokemon.species?.url;
+  
+  if (!speciesUrl) {
+    // Si por alguna razón no hay URL de especie, devolvemos el nombre normal
+    return [pokemon.name];
+  }
+
+  try {
+    const speciesData = await fetchJson(speciesUrl);
+    // Mapeamos el array de varieties para sacar solo el nombre adaptado para la API
+    return speciesData.varieties.map(variedad => variedad.pokemon.name);
+  } catch (err) {
+    console.error('Error obteniendo variantes:', err);
+    return [pokemon.name];
+  }
+}
+
 // Asegúrate de agregar estas funciones al module.exports existente:
 module.exports = {
   consultarPokemon,
@@ -273,5 +291,6 @@ module.exports = {
   getCaptureRate,
   calcularProbabilidadCaptura,
   obtenerMultiplicadorLocal,
-  getEvolucionesInmediatas 
+  getEvolucionesInmediatas,
+  getVariantesPokemon
 };
