@@ -15,7 +15,6 @@ async function handlePokemon(msg, busqueda = null) {
   try {
     let data;
 
-    // 1. Lógica de búsqueda del Pokémon
     if (busqueda) {
       console.log(`[${new Date().toLocaleTimeString()}] Buscando Pokémon por nombre: ${busqueda}...`);
       try {
@@ -32,7 +31,6 @@ async function handlePokemon(msg, busqueda = null) {
       data = await consultarPokemon(randomId);
     }
 
-    // 2. Procesamiento de datos y traducciones en paralelo
     const [nombre, habilidades, tipos] = await Promise.all([
       getNombreEspanol(data),
       getHabilidadesEspanol(data),
@@ -43,11 +41,12 @@ async function handlePokemon(msg, busqueda = null) {
     const altura = (data.height / 10).toFixed(1);
     const peso = (data.weight / 10).toFixed(1);
 
-    // 3. Mapeo y filtrado de estadísticas
     const statsMap = {
       hp: '❤️ Vida',
       attack: '⚔️ Ataque',
       defense: '🛡️ Defensa',
+      'special-attack': '💥 Atk. Especial',
+      'special-defense': '🔰 Def. Especial',
       speed: '⚡ Velocidad',
     };
 
@@ -56,11 +55,14 @@ async function handlePokemon(msg, busqueda = null) {
       .map((s) => `${statsMap[s.stat.name]}: *${s.base_stat}*`)
       .join('\r\n');
 
-    // 4. Obtención de archivos multimedia (Imagen y Audio)
+    const velocidadStat = data.stats.find(s => s.stat.name === 'speed');
+    const velocidadBase = velocidadStat ? velocidadStat.base_stat : 0;
+    let probEsquive = velocidadBase / 20;
+    if (probEsquive > 30) probEsquive = 30;
+
     const urlImagen = getImagen(data);
     const urlAudio = getAudioGrito(data); 
 
-    // 5. Construcción del mensaje de texto
     const mensaje =
       `✨ *¡POKÉMON AVISTADO!* ✨\r\n` +
       `──────────────────────\r\n\r\n` +
@@ -72,13 +74,12 @@ async function handlePokemon(msg, busqueda = null) {
       `• *Peso:* ${peso} kg\r\n` +
       `• *Habilidades:* _${habilidades}_\r\n\r\n` +
       `⚔️ *ESTADÍSTICAS BASE*\r\n` +
-      `${estadisticas}`;
+      `${estadisticas}\r\n` +
+      `💨 *Prob. Esquivar:* ${probEsquive.toFixed(1)}%`;
 
-    // 6. Envío de la respuesta principal (Mensaje + Sticker)
     await replyWithSticker(msg, mensaje, urlImagen, nombre);
     console.log(`[Bot] Datos y sticker de ${nombre} enviados correctamente.`);
 
-    // 7. Envío opcional del audio (Grito del Pokémon)
     if (urlAudio) {
       try {
         await replyWithAudio(msg, urlAudio); 

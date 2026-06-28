@@ -474,6 +474,37 @@ async function reactivarEquipoCompleto(whatsappId) {
   }
 }
 
+/**
+ * Ejecuta la evolución de un Pokémon descontando rocas y actualizando sus datos.
+ */
+async function evolucionarPokemon(usuarioId, pokemonAtrapadoId, nuevoPokemonId, nuevoNombre, costoRocas) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Descontar las rocas del inventario
+    await connection.execute(
+      'UPDATE inventario SET rocas_evolutivas = rocas_evolutivas - ? WHERE usuario_id = ?',
+      [costoRocas, usuarioId]
+    );
+
+    // 2. Actualizar el Pokémon (Solo cambia ID, Nombre e incrementa evoluciones)
+    await connection.execute(
+      'UPDATE pokemon_atrapados SET pokemon_id = ?, nombre = ?, evoluciones = evoluciones + 1 WHERE id = ?',
+      [nuevoPokemonId, nuevoNombre, pokemonAtrapadoId]
+    );
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al evolucionar:', error);
+    return false;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -490,5 +521,6 @@ module.exports = {
   asignarEquipoPokemon,
   obtenerEquipoPokemon,
   cambiarEstadoEquipo,
-  reactivarEquipoCompleto
+  reactivarEquipoCompleto,
+  evolucionarPokemon
 };

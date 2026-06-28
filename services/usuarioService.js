@@ -153,7 +153,7 @@ async function transferirMonedas(remitenteId, destinatarioId, cantidad) {
 async function obtenerInventarioCompleto(whatsappId) {
   try {
     const query = `
-      SELECT u.pokeballs, i.pocion_xp_small
+      SELECT u.pokeballs, i.pocion_xp_small, i.rocas_evolutivas
       FROM usuarios u
       LEFT JOIN inventario i ON u.id = i.usuario_id
       WHERE u.whatsapp_id = ?

@@ -1,5 +1,5 @@
 const pokemonService = require('../services/pokemonService');
-const { consultarPokemon, getStat, getImagen } = require('../services/pokeapi');
+const { consultarPokemon, getStat, getImagen, getTiposEspanol } = require('../services/pokeapi');
 const { MessageMedia } = require('whatsapp-web.js');
 
 async function handlePokemonStats(msg) {
@@ -34,10 +34,8 @@ async function handlePokemonStats(msg) {
       spDef: getStat(dataApi, 'special-defense') || 0,
     };
 
-    // --- CÁLCULO DE ESQUIVE ---
     let probEsquive = (stats.vel / 20) + (pokeDB.nivel > 1 ? pokeDB.nivel - 1 : 0);
     if (probEsquive > 30) probEsquive = 30;
-    // --------------------------
 
     const fechaFormateada = new Date(pokeDB.atrapado_en).toLocaleString('es-CO', {
       day: '2-digit',
@@ -47,6 +45,8 @@ async function handlePokemonStats(msg) {
       minute: '2-digit',
       hour12: true
     });
+
+    const tipos = await Promise.resolve(getTiposEspanol(dataApi));
 
     const mensaje = 
       `📊 *ESTADÍSTICAS INDIVIDUALES* 📊\r\n` +
@@ -60,13 +60,14 @@ async function handlePokemonStats(msg) {
       `────────────────────────\r\n` +
       `🧬 *ESTADÍSTICAS BASE DE ESPECIE:*\r\n` +
       `🔢 *Nº Pokedex:* #${pokedexId}\r\n` +
+      `🏷️ *Tipo:* [ *${tipos}* ]\r\n` +
       `❤️ *HP Base:* ${stats.hp}\r\n` +
       `⚔️ *Ataque Base:* ${stats.atk}\r\n` +
       `🛡️ *Defensa Base:* ${stats.def}\r\n` +
       `💥 *Atk. Especial:* ${stats.spAtk}\r\n` +
       `🔰 *Def. Especial:* ${stats.spDef}\r\n` +
       `⚡ *Velocidad:* ${stats.vel}\r\n` +
-      `💨 *Prob. de Esquivar:* ${probEsquive.toFixed(1)}%`; // Se añade el % calculado
+      `💨 *Prob. de Esquivar:* ${probEsquive.toFixed(1)}%`; 
 
     await msg.reply(mensaje);
 

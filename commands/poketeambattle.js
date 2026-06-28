@@ -64,17 +64,19 @@ async function ejecutarMatchup(battleId, msgContext) {
                   `👤 *${battle.p1.name}:* ${p1Active.nombre} (HP: ${p1Active.hp}/${p1Active.maxHp})\r\n` +
                   `🎯 *${battle.p2.name}:* ${p2Active.nombre} (HP: ${p2Active.hp}/${p2Active.maxHp})\r\n──────────────────────\r\n\r\n`;
 
-    // Determinar iniciativa
+    // Determinar iniciativa puramente por velocidad
     let turnoP1 = p1Active.vel >= p2Active.vel;
-    if (battle.forceFirstStrike === 'p1') turnoP1 = true;
-    if (battle.forceFirstStrike === 'p2') turnoP1 = false;
-    battle.forceFirstStrike = null; // Reiniciamos la regla del primer golpe
+    
+    // Eliminamos la regla forceFirstStrike para que siempre ataque el más rápido
+    battle.forceFirstStrike = null; 
 
-    cronica += `⚡ _${turnoP1 ? p1Active.nombre : p2Active.nombre} ataca primero._\r\n\r\n`;
+    cronica += `⚡ _${turnoP1 ? p1Active.nombre : p2Active.nombre} ataca primero por velocidad._\r\n\r\n`;
 
     let rondas = 0;
     while (p1Active.hp > 0 && p2Active.hp > 0 && rondas < 15) {
         rondas++;
+        cronica += `*ROUND ${rondas}* 🥊\r\n`; // Agregado el conteo de rondas
+
         const atacante = turnoP1 ? p1Active : p2Active;
         const defensor = turnoP1 ? p2Active : p1Active;
 
@@ -91,8 +93,11 @@ async function ejecutarMatchup(battleId, msgContext) {
             let danioBase = Math.floor(atacante.atk * 1.4 - defensor.def * 0.4);
             if (danioBase < 12) danioBase = Math.floor(Math.random() * 8) + 12;
 
-            // 3. Aplicación de efectividad (Igual a handlePokeaccept)
-            let multiplicador = await obtenerMultiplicadorLocal(tipoElegido, defensor.tipos) || 1;
+            // 3. Aplicación de efectividad (Corrección del bug del 0 || 1)
+            let multiplicador = await obtenerMultiplicadorLocal(tipoElegido, defensor.tipos);
+            if (typeof multiplicador !== 'number' || isNaN(multiplicador)) {
+                multiplicador = 1;
+            }
             
             // Lógica de daño según multiplicador
             if (multiplicador === 0) {
@@ -111,7 +116,7 @@ async function ejecutarMatchup(battleId, msgContext) {
             defensor.hp -= danioBase;
             if (defensor.hp < 0) defensor.hp = 0;
 
-            // 5. Generación de texto de efectividad (Igual a handlePokeaccept)
+            // 5. Generación de texto de efectividad
             let txtEficacia = '';
             if (multiplicador === 0) txtEficacia = ' ¡No tiene ningún efecto! ❌ ';
             else if (multiplicador > 1.25) txtEficacia = ' ¡Es EXTREMADAMENTE eficaz! 🔥🔥 ';
@@ -121,7 +126,7 @@ async function ejecutarMatchup(battleId, msgContext) {
 
             cronica += `• 💥 *${atacante.nombre}* ataca usando tipo *${tipoElegido}*.\r\n` +
                        `• ${esCritico ? '🎯 _¡Impacto crítico!_ ' : ''}${txtEficacia}` +
-                       `Daño: *${danioBase}*. 🩸 ${defensor.nombre} queda con *${defensor.hp} HP*.\r\n`;
+                       `${danioBase > 0 ? `Daño: *${danioBase}*.` : `${defensor.nombre} resultó ileso.`} 🩸 *${defensor.nombre}* queda con *${defensor.hp} HP*.\r\n`;
         }
         turnoP1 = !turnoP1;
         cronica += '\n';
@@ -142,12 +147,11 @@ async function ejecutarMatchup(battleId, msgContext) {
         cronica += `💀 ¡El *${p2Active.nombre}* de ${battle.p2.name} se ha debilitado!\n`;
     }
 
-    // Comprobar si quedan Pokémon vivos en los equipos
     const vivosP1 = battle.p1.team.filter(p => p.hp > 0).length;
     const vivosP2 = battle.p2.team.filter(p => p.hp > 0).length;
 
     if (vivosP1 === 0 || vivosP2 === 0) {
-        // FIN DE LA BATALLA DE EQUIPOS
+        // ... (Tu código existente para el fin del combate se mantiene igual)
         cronica += `\n🏆 *¡FIN DEL COMBATE DE EQUIPOS!* 🏆\n`;
         let idGanador = null;
         let nombreGanador = '';
@@ -170,7 +174,6 @@ async function ejecutarMatchup(battleId, msgContext) {
             }
         }
 
-        // Registrar batallas para todo el equipo y reactivar estados
         for (let p of battle.p1.team) await pokemonService.registrarCombate(p.atrapado_id);
         for (let p of battle.p2.team) await pokemonService.registrarCombate(p.atrapado_id);
         await pokemonService.reactivarEquipoCompleto(battle.p1.id);
@@ -183,19 +186,16 @@ async function ejecutarMatchup(battleId, msgContext) {
         ]);
 
     } else {
-        // CONTINÚA LA BATALLA - ALGUIEN DEBE CAMBIAR
         if (p1Caido) battle.p1.necesitaCambio = true;
         if (p2Caido) battle.p2.necesitaCambio = true;
 
         cronica += `\n⚠️ *LA BATALLA CONTINÚA* ⚠️\n`;
         if (p1Caido && p2Caido) {
-            cronica += `Ambos deben elegir a su siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero_jerarquia]*`;
+            cronica += `Ambos deben elegir a su siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
         } else if (p1Caido) {
-            cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero_jerarquia]*`;
-            battle.forceFirstStrike = 'p1'; // Regla: El que entra nuevo ataca primero
+            cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
         } else if (p2Caido) {
-            cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero_jerarquia]*`;
-            battle.forceFirstStrike = 'p2';
+            cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
         }
 
         await replyWithLabeledStickers(msgContext, cronica, [
@@ -284,11 +284,13 @@ async function handlePoketeamBattle(msg, texto) {
         return;
     }
 
-    // ==========================================
+   // ==========================================
     // 3. CAMBIAR POKÉMON DURANTE BATALLA
     // ==========================================
-    if (args.length === 3 && args[1].toLowerCase() === 'switch') {
-        const jerarquia = parseInt(args[2]);
+    if (args.length >= 3 && args[1].toLowerCase() === 'switch') {
+        // Unimos el resto de los argumentos por si el nombre tiene espacios
+        const parametroCambio = args.slice(2).join(' ').toLowerCase(); 
+        
         let battleObj = null;
         let esP1 = false;
 
@@ -305,12 +307,21 @@ async function handlePoketeamBattle(msg, texto) {
 
         if (!jugador.necesitaCambio) return await msg.reply('⚠️ No es tu turno de cambiar. Tu Pokémon actual sigue en pie o esperas al rival.');
 
-        const nuevoPoke = jugador.team.find(p => p.jerarquia === jerarquia);
-        if (!nuevoPoke) return await msg.reply(`❌ La posición ${jerarquia} está vacía.`);
+        const jerarquia = parseInt(parametroCambio);
+        let nuevoPoke;
+        
+        // Verifica si escribió un número o el nombre
+        if (!isNaN(jerarquia)) {
+            nuevoPoke = jugador.team.find(p => p.jerarquia === jerarquia);
+        } else {
+            nuevoPoke = jugador.team.find(p => p.nombre.toLowerCase() === parametroCambio);
+        }
+
+        if (!nuevoPoke) return await msg.reply(`❌ No se encontró ningún Pokémon con esa posición o nombre en tu equipo.`);
         if (nuevoPoke.hp <= 0) return await msg.reply(`❌ *${nuevoPoke.nombre}* está debilitado. ¡Elige otro!`);
 
         // Ejecutar cambio
-        jugador.activeJerarquia = jerarquia;
+        jugador.activeJerarquia = nuevoPoke.jerarquia;
         jugador.necesitaCambio = false;
 
         await msg.reply(`🔄 *${jugador.name}* envía a *${nuevoPoke.nombre}* a la batalla.`);
