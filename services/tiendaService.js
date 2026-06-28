@@ -50,20 +50,31 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       return { error: 'fondos_insuficientes', saldo: usuario.monedas, costo: costoTotal };
     }
 
-    // 4. Ejecutar actualizaciones según el tipo
-    // Restamos monedas siempre
+    // 4. Ejecutar actualizaciones
     await connection.execute('UPDATE usuarios SET monedas = monedas - ? WHERE id = ?', [costoTotal, usuarioId]);
 
     if (producto.tipo === 'simple') {
-      // Caso Pokéball (tabla usuarios)
       await connection.execute('UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id = ?', [cantidad, usuarioId]);
     } else {
-      // Caso Poción (tabla inventario)
-      // Usamos INSERT ... ON DUPLICATE KEY UPDATE por si el usuario aún no tiene registro en inventario
+      // --- CORRECCIÓN AQUÍ ---
+      
+      // 1. Aseguramos que el usuario tenga una fila en la tabla inventario
+      // IGNORE evita el error si el usuario ya existe
       await connection.execute(
-        `INSERT INTO inventario (usuario_id, pocion_xp_small) VALUES (?, ?) 
-         ON DUPLICATE KEY UPDATE pocion_xp_small = pocion_xp_small + ?`,
-        [usuarioId, cantidad, cantidad]
+        'INSERT IGNORE INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas) VALUES (?, 0, 0, 0)',
+        [usuarioId]
+      );
+
+      // 2. Ahora hacemos el update dinámico según el nombre del producto
+      // Usamos un switch para mapear el nombre del producto a la columna correcta
+      let columna = '';
+      if (producto.nombre === 'Poción_XP_Small') columna = 'pocion_xp_small';
+      else if (producto.nombre === 'rocas_evolutivas') columna = 'rocas_evolutivas';
+      // Puedes añadir más aquí según tus productos
+
+      await connection.execute(
+        `UPDATE inventario SET ${columna} = ${columna} + ? WHERE usuario_id = ?`,
+        [cantidad, usuarioId]
       );
     }
 

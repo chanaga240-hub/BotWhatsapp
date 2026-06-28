@@ -165,7 +165,8 @@ async function obtenerInventarioCompleto(whatsappId) {
     // Si el usuario no tiene fila en inventario, devolvemos 0 pociones
     return {
       pokeballs: rows[0].pokeballs || 0,
-      pocion_xp_small: rows[0].pocion_xp_small || 0
+      pocion_xp_small: rows[0].pocion_xp_small || 0,
+      rocas_evolutivas: rows[0].rocas_evolutivas || 0
     };
   } catch (error) {
     console.error('Error al obtener inventario:', error);
