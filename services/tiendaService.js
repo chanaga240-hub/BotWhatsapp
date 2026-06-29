@@ -21,23 +21,11 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
 
     // 2. Definir producto según código
     if (codigo === '001') {
-      producto = {
-        nombre: "Pokéball",
-        precioUnitario: 25,
-        tipo: 'simple'
-      };
+      producto = { nombre: "Pokéball", precioUnitario: 25, tipo: 'simple' };
     } else if (codigo === '002') {
-      producto = {
-        nombre: "Poción_XP_Small",
-        precioUnitario: 200,
-        tipo: 'inventario'
-      };
-    }else if (codigo === '003') {
-      producto = {
-        nombre: "rocas_evolutivas",
-        precioUnitario: 500,
-        tipo: 'inventario'
-      };
+      producto = { nombre: "Poción_XP_Small", precioUnitario: 200, tipo: 'inventario' };
+    } else if (codigo === '003') {
+      producto = { nombre: "rocas_evolutivas", precioUnitario: 500, tipo: 'inventario' };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
@@ -56,26 +44,35 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
     if (producto.tipo === 'simple') {
       await connection.execute('UPDATE usuarios SET pokeballs = pokeballs + ? WHERE id = ?', [cantidad, usuarioId]);
     } else {
-      // --- CORRECCIÓN AQUÍ ---
+      // --- CORRECCIÓN DE DUPLICADOS AQUÍ ---
       
-      // 1. Aseguramos que el usuario tenga una fila en la tabla inventario
-      // IGNORE evita el error si el usuario ya existe
-      await connection.execute(
-        'INSERT IGNORE INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas) VALUES (?, 0, 0, 0)',
+      // 1. Verificamos explícitamente si el usuario YA tiene un inventario creado
+      const [invRows] = await connection.execute(
+        'SELECT id FROM inventario WHERE usuario_id = ? FOR UPDATE',
         [usuarioId]
       );
 
-      // 2. Ahora hacemos el update dinámico según el nombre del producto
-      // Usamos un switch para mapear el nombre del producto a la columna correcta
+      // 2. Mapeamos el nombre del producto a la columna de la BD
       let columna = '';
       if (producto.nombre === 'Poción_XP_Small') columna = 'pocion_xp_small';
       else if (producto.nombre === 'rocas_evolutivas') columna = 'rocas_evolutivas';
-      // Puedes añadir más aquí según tus productos
 
-      await connection.execute(
-        `UPDATE inventario SET ${columna} = ${columna} + ? WHERE usuario_id = ?`,
-        [cantidad, usuarioId]
-      );
+      if (invRows.length === 0) {
+        // Si NO tiene fila en inventario, la creamos y le asignamos la cantidad comprada de una vez
+        const pocionInit = columna === 'pocion_xp_small' ? cantidad : 0;
+        const rocasInit = columna === 'rocas_evolutivas' ? cantidad : 0;
+        
+        await connection.execute(
+          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas) VALUES (?, ?, 0, ?)',
+          [usuarioId, pocionInit, rocasInit]
+        );
+      } else {
+        // Si YA existe, simplemente actualizamos la cantidad sumando a lo que ya tenía
+        await connection.execute(
+          `UPDATE inventario SET ${columna} = ${columna} + ? WHERE usuario_id = ?`,
+          [cantidad, usuarioId]
+        );
+      }
     }
 
     await connection.commit(); // Confirmamos todo

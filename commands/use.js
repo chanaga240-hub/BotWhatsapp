@@ -68,7 +68,7 @@ async function handleUse(msg, texto) {
       return await replyText(msg, `💎 No tienes suficientes Rocas Evolutivas.\n\n🎒 Tienes: *${rocasActuales}*\n📈 Necesitas: *${rocasNecesarias}* para realizar la evolución #${rocasNecesarias}.`);
     }
 
-    // 5. Consultar evoluciones en la PokeAPI
+    // 5. Consultar evoluciones en la PokeAPI y filtrar las Mega
     let dataActual;
     try {
       dataActual = await consultarPokemon(pokemon.pokemon_id);
@@ -76,7 +76,10 @@ async function handleUse(msg, texto) {
       return await replyText(msg, '⚠️ Error al conectar con la PokéAPI para consultar a tu Pokémon.');
     }
 
-    const evoluciones = await getEvolucionesInmediatas(dataActual);
+    // Obtenemos las evoluciones y descartamos explícitamente cualquier variante que termine en "-mega"
+    const evoluciones = (await getEvolucionesInmediatas(dataActual))
+      .filter(e => !e.toLowerCase().endsWith('-mega'));
+
     if (evoluciones.length === 0) {
       return await replyText(msg, `✨ *${pokemon.nombre}* ya ha alcanzado su forma final o no tiene evoluciones registradas.`);
     }
