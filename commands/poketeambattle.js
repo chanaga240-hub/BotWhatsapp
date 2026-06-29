@@ -233,6 +233,29 @@ async function handlePoketeamBattle(msg, texto) {
         if (!idRival) return await msg.reply('❌ Debes mencionar a un rival. Ej: #poketeambattle @Marco 1');
         if (idRival === remitenteId) return await msg.reply('❌ No puedes retarte a ti mismo.');
 
+        // --- NUEVA VALIDACIÓN: Verificar si el rival (o tú) ya están en batalla ---
+        let rivalEnBatalla = false;
+        let retadorEnBatalla = false;
+        
+        for (let battle of activeTeamBattles.values()) {
+            // Revisa si el ID del rival coincide con el de P1 o P2 en alguna batalla activa
+            if (battle.p1.id === idRival || battle.p2.id === idRival) {
+                rivalEnBatalla = true;
+            }
+            // También es buena práctica revisar si el que reta está ya en una batalla
+            if (battle.p1.id === remitenteId || battle.p2.id === remitenteId) {
+                retadorEnBatalla = true;
+            }
+        }
+
+        if (rivalEnBatalla) {
+            return await msg.reply('❌ Ese jugador ya se encuentra en una batalla de equipos activa. Espera a que termine.');
+        }
+        if (retadorEnBatalla) {
+            return await msg.reply('❌ Tú ya estás en una batalla de equipos activa. Termínala antes de retar a alguien más.');
+        }
+        // -------------------------------------------------------------------------
+
         const jerarquia = parseInt(args[2]);
         if (isNaN(jerarquia) || jerarquia < 1 || jerarquia > 6) return await msg.reply('❌ Jerarquía inválida (1-6).');
 

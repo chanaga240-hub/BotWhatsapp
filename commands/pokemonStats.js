@@ -89,7 +89,7 @@ async function handlePokemonStats(msg) {
       `🛡️ *Defensa:* ${stats.def} + ${bonoDef} = *${defTotal}*\r\n` +
       `💥 *Atk. Especial:* ${stats.spAtk} + ${bonoSpAtk} = *${spAtkTotal}*\r\n` +
       `🔰 *Def. Especial:* ${stats.spDef} + ${bonoSpDef} = *${spDefTotal}*\r\n` +
-      `⚡ *Velocidad:* ${stats.vel} + ${bonoVel} = *${velTotal}*\r\n` +
+      `⚡ *Velocidad:* ${stats.vel} \r\n` +
       `💨 *Prob. de Esquivar:* ${probEsquive.toFixed(1)}%`; 
 
     await msg.reply(mensaje);
