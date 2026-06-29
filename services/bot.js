@@ -7,6 +7,8 @@ const { getPuppeteerOptions } = require('./browser');
 const usuarioService = require('./usuarioService'); 
 const pokemonService = require('./pokemonService');
 const configuracionService = require('./configuracionService'); 
+const { generarTarjetaPokemon } = require('../services/canvasService');
+const { consultarPokemon, getImagen, getStat } = require('./pokeapi');
 
 global.pokemonSalvajeActivo = null;
 const ADMIN_NUMBER = '64514737336383:66';
@@ -522,90 +524,70 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #pokedex
+        // COMANDO: #pokedex (Optimizado - Collage de 6)
         // ==========================================
         if (textoMinuscula.startsWith('#pokedex')) {
           try {
-            const { consultarPokemon, getImagen } = require('./pokeapi');
+            const { consultarPokemon, getImagen, getStat } = require('./pokeapi');
+            const { generarCollagePokemon } = require('../services/canvasService');
 
             const listaPokemon = await pokemonService.obtenerPokedex(whatsappId);
-
-            if (listaPokemon.length === 0) {
-              return await msg.reply('🎒 Tu Pokédex está vacía. ¡Invoca un #pokesalvaje y empieza a capturar!');
+            if (!listaPokemon || listaPokemon.length === 0) {
+              return await msg.reply('🎒 Tu Pokédex está vacía. ¡Invoca un #pokesalvaje!');
             }
 
-            let cuerpoPokedex = '';
-            listaPokemon.forEach((p, index) => {
-              const repetidos = p.cantidad > 1 ? ` x${p.cantidad}` : '';
-              cuerpoPokedex += `${index + 1}. *${p.nombre}* (Nivel ${p.nivel})${repetidos}\n`;
-            });
+            const chatPrivadoId = msg.fromMe ? this.client.info.wid._serialized : (msg.author || msg.from);
 
-            const mensajePokedex = 
-              `📱 *POKÉDEX DE ENTRENADOR* 📱\n` +
-              `👤 *Entrenador:* ${usuario.nombre_whatsapp}\n` +
-              `🔢 *Total especies:* ${listaPokemon.length}\n` +
-              `──────────────────────\n\n` +
-              cuerpoPokedex + `\n` +
-              `🎒 _¡Abajo te dejo los stickers de tus Pokémon capturados!_`;
+            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 6 Pokémon...`);
 
-            let chatPrivadoId;
-            if (msg.fromMe) {
-              chatPrivadoId = this.client.info.wid._serialized;
-            } else {
-              chatPrivadoId = msg.author || msg.from;
+            // 1. Fragmentar lista en bloques de 6
+            const bloques = [];
+            for (let i = 0; i < listaPokemon.length; i += 6) {
+              bloques.push(listaPokemon.slice(i, i + 6));
             }
 
-            await this.client.sendMessage(chatPrivadoId, mensajePokedex);
+            // 2. Procesar bloques
+            for (const [index, bloque] of bloques.entries()) {
+              const datosBloque = [];
 
-            if (isGroup) {
-              await msg.reply('📬 *¡Pokédex enviada!* Revisa tu chat privado con el bot para ver la lista y tus stickers.');
-            }
+              for (const p of bloque) {
+                let nombreBase = p.nombre.toLowerCase().trim();
+                if (nombreBase === 'oinkologne') nombreBase = p.genero === 'female' ? 'oinkologne-female' : 'oinkologne-male';
+                let idApi = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : nombreBase;
+                if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
 
-            this.log(`[Bot] Iniciando envío de ${listaPokemon.length} stickers para ${usuario.nombre_whatsapp}...`, 'info');
-
-            let contador = 0;
-            for (const p of listaPokemon) {
-              contador++;
-              try {
-                let pokemonIdentificador = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : p.nombre.toLowerCase().trim();
-
-                if (p.nombre.toLowerCase().includes('urshifu')) {
-                  pokemonIdentificador = 'urshifu-single-strike';
+                const dataApi = await consultarPokemon(idApi).catch(() => consultarPokemon(nombreBase));
+                if (dataApi) {
+                  datosBloque.push({
+                    nombre: p.nombre,
+                    nivel: p.nivel,
+                    hp: getStat(dataApi, 'hp'),
+                    atk: getStat(dataApi, 'attack'),
+                    def: getStat(dataApi, 'defense'),
+                    spAtk: getStat(dataApi, 'special-attack'),
+                    spDef: getStat(dataApi, 'special-defense'),
+                    vel: getStat(dataApi, 'speed'),
+                    spriteUrl: getImagen(dataApi)
+                  });
                 }
-                
-                let dataApi;
-                try {
-                    dataApi = await consultarPokemon(pokemonIdentificador);
-                } catch (apiError) {
-                    dataApi = await consultarPokemon(p.nombre.toLowerCase().trim());
-                }
-                
-                if (!dataApi) continue;
-                
-                const urlImagen = getImagen(dataApi);
-                if (!urlImagen) continue;
-
-                let media = await MessageMedia.fromUrl(urlImagen);
-                if (!media) continue;
-
-                await this.client.sendMessage(chatPrivadoId, media, {
-                  sendMediaAsSticker: true,
-                  stickerName: p.nombre,
-                  stickerAuthor: `Pokédex de ${usuario.nombre_whatsapp}`
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 2000));
-
-              } catch (stickerErr) {
-                this.log(`[Bot] ❌ Error en ${p.nombre}: ${stickerErr.message}`, 'error');
               }
+
+              // 3. Generar y enviar collage
+              const imageBuffer = await generarCollagePokemon(datosBloque);
+              const media = new MessageMedia('image/png', imageBuffer.toString('base64'), `pokedex_${index}.png`);
+
+              await this.client.sendMessage(chatPrivadoId, media, {
+                caption: `📦 *Hoja de Pokédex ${index + 1}/${bloques.length}*`
+              });
+
+              await new Promise(resolve => setTimeout(resolve, 3000));
             }
-            
-            this.log(`[Bot] Proceso de Pokédex finalizado para ${usuario.nombre_whatsapp}`, 'info');
-            return;
+
+            this.log(`[Bot] Pokédex enviada a ${usuario.nombre_whatsapp}`, 'info');
+
           } catch (err) {
-            console.error('Error en el comando #pokedex:', err);
-            return await msg.reply('⚠️ Hubo un error al procesar tu Pokédex.');
+            console.error('Error en #pokedex:', err);
+            await msg.reply('⚠️ Hubo un error procesando tu Pokédex.');
           }
         }
 
