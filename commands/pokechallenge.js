@@ -17,10 +17,32 @@ async function handlePokechallenge(msg, texto) {
   const usuario = userRows[0];
 
   // ==========================================
-  // FASE 1: GENERAR EL DESAFÍO
+  // FASE 1: GENERAR O RECORDAR EL DESAFÍO
   // ==========================================
   if (!nombrePokemon) {
-    // Verificar Cooldown en la tabla usuarios (Por ejemplo: 30 minutos)
+    
+    // NUEVO: Si ya tiene un desafío pendiente, se lo recordamos con los mismos datos
+    if (npcDesafiosPendientes.has(whatsappId)) {
+      const desafioExistente = npcDesafiosPendientes.get(whatsappId);
+      const imgRivalDesafio = getImagen(desafioExistente.pokeData);
+      
+      const textoDesafioPendiente = `📢 *¡TIENES UN DESAFÍO PENDIENTE!* 📢\n\n` +
+        `👤 *${desafioExistente.npcNombre}* aún te está esperando y te dice:\n` +
+        `💬 _"${desafioExistente.npcDialogo}"_\n\n` +
+        `🔥 Su *${desafioExistente.pokemonNombre}* (Nivel ${desafioExistente.pokemonNivel}) está listo para pelear.\n\n` +
+        `Para aceptar el duelo, responde usando:\n` +
+        `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
+
+      try {
+        const media = await MessageMedia.fromUrl(imgRivalDesafio);
+        return await msg.reply(media, undefined, { caption: textoDesafioPendiente });
+      } catch (error) {
+        console.error('Error al enviar la foto del desafío pendiente:', error);
+        return await msg.reply(textoDesafioPendiente);
+      }
+    }
+
+    // Verificar Cooldown en la tabla usuarios (Si no tiene desafío pendiente)
     if (usuario.fecha_challenge) {
       const ultima = new Date(usuario.fecha_challenge);
       const ahora = new Date();
@@ -64,8 +86,8 @@ async function handlePokechallenge(msg, texto) {
       pokeData: pokeDataNPC
     });
 
-    // --- CAMBIO: Enviar como Imagen + Texto (Caption) ---
-    const imgRivalDesafio = getImagen(pokeDataNPC); // Obtenemos la URL de la imagen
+    // Enviar como Imagen + Texto (Caption)
+    const imgRivalDesafio = getImagen(pokeDataNPC); 
     
     const textoDesafio = `📢 *¡UN ENTRENADOR TE DESAFÍA!* 📢\n\n` +
       `👤 *${npc.nombre}* se acerca y te dice:\n` +
@@ -75,15 +97,10 @@ async function handlePokechallenge(msg, texto) {
       `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
 
     try {
-      // Convertimos la URL en un objeto multimedia compatible con WhatsApp
       const media = await MessageMedia.fromUrl(imgRivalDesafio);
-      
-      // Enviamos la foto usando el texto como pie de foto (caption)
       return await msg.reply(media, undefined, { caption: textoDesafio });
-      
     } catch (error) {
       console.error('Error al enviar la foto del desafío:', error);
-      // Fallback: Si por alguna razón falla la descarga de la imagen, enviamos al menos el texto
       return await msg.reply(textoDesafio);
     }
   }
@@ -111,6 +128,7 @@ async function handlePokechallenge(msg, texto) {
     }
   }
 
+  // Borramos el desafío pendiente ya que la batalla se va a ejecutar de forma definitiva
   npcDesafiosPendientes.delete(whatsappId);
 
   await msg.reply(`⏳ ¡Desafío aceptado! *${usuario.nombre_whatsapp}* envía a *${pokeInventario.nombre}* contra el *${desafio.pokemonNombre}* de *${desafio.npcNombre}*...`);
@@ -123,7 +141,6 @@ async function handlePokechallenge(msg, texto) {
   const multNivelJugador = 1 + (pokeInventario.nivel - 1) * 0.05;
   const multNivelRival = 1 + (desafio.pokemonNivel - 1) * 0.05;
 
-  // --- CAMBIO: Integración de Stats Especiales ---
   const p1 = {
     nombre: pokeInventario.nombre,
     nivel: pokeInventario.nivel,
@@ -179,7 +196,6 @@ async function handlePokechallenge(msg, texto) {
     } else {
       const tipoElegido = atacante.tipos[Math.floor(Math.random() * atacante.tipos.length)];
       
-      // --- CAMBIO: Lógica del 30% para ataque especial ---
       let danioBase = 0;
       let esAtaqueEspecial = Math.random() < 0.30;
       
@@ -247,14 +263,11 @@ async function handlePokechallenge(msg, texto) {
     }
   }
 
-  // APLICAR RECOMPENSAS A LA BASE DE DATOS
   if (victoriaJugador) {
     cronica += `\n\n🎁 *RECOMPENSAS OBTENIDAS:*\n🪙 +15 Monedas\n✨ +5 EXP para Entrenador\n✨ +5 EXP para ${p1.nombre}`;
     
-    // 1. Recompensa al Usuario (Monedas, EXP y Cooldown general)
     await db.execute('UPDATE usuarios SET monedas = monedas + 15, experiencia = experiencia + 5, fecha_challenge = NOW() WHERE id = ?', [usuario.id]);
 
-    // 2. Recompensa al Pokémon (Con cálculo de subida de nivel por si acaso)
     let expActual = (pokeInventario.experiencia || 0) + 5;
     let nivelNuevo = pokeInventario.nivel || 1;
     let xpNecesaria = 100 + ((nivelNuevo - 1) * 25);
@@ -268,12 +281,10 @@ async function handlePokechallenge(msg, texto) {
     await db.execute('UPDATE pokemon_atrapados SET experiencia = ?, nivel = ?, fecha_ultimo_combate = NOW() WHERE id = ?', [expActual, nivelNuevo, pokeInventario.id]);
 
   } else {
-    // Si pierde, solo actualizamos los cooldowns
     await db.execute('UPDATE usuarios SET fecha_challenge = NOW() WHERE id = ?', [usuario.id]);
     await db.execute('UPDATE pokemon_atrapados SET fecha_ultimo_combate = NOW() WHERE id = ?', [pokeInventario.id]);
   }
 
-  // Enviar los stickers finales
   const labeledStickers = [
     { label: `👤 ${usuario.nombre_whatsapp}: ${p1.nombre}`, url: imgJugador, stickerName: p1.nombre },
     { label: `🎯 ${desafio.npcNombre}: ${p2.nombre}`, url: imgRival, stickerName: p2.nombre },
