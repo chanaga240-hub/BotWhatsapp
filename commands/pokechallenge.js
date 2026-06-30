@@ -2,6 +2,7 @@ const { consultarPokemon, getStat, getImagen, obtenerMultiplicadorLocal, randomP
 const pokemonService = require('../services/pokemonService');
 const db = require('../services/database');
 const { replyWithLabeledStickers } = require('../services/reply');
+const { MessageMedia } = require('whatsapp-web.js'); 
 
 // Mapa en memoria exclusivo para los duelos PvE
 const npcDesafiosPendientes = new Map();
@@ -63,14 +64,28 @@ async function handlePokechallenge(msg, texto) {
       pokeData: pokeDataNPC
     });
 
-    return await msg.reply(
-      `📢 *¡UN ENTRENADOR TE DESAFÍA!* 📢\n\n` +
+    // --- CAMBIO: Enviar como Imagen + Texto (Caption) ---
+    const imgRivalDesafio = getImagen(pokeDataNPC); // Obtenemos la URL de la imagen
+    
+    const textoDesafio = `📢 *¡UN ENTRENADOR TE DESAFÍA!* 📢\n\n` +
       `👤 *${npc.nombre}* se acerca y te dice:\n` +
       `💬 _"${npc.dialog}"_\n\n` +
       `🔥 Ha elegido a *${pokeDataNPC.name}* (Nivel ${nivelNPC}).\n\n` +
       `Para aceptar el duelo, responde usando:\n` +
-      `👉 *#pokechallenge [nombre_de_tu_pokemon]*`
-    );
+      `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
+
+    try {
+      // Convertimos la URL en un objeto multimedia compatible con WhatsApp
+      const media = await MessageMedia.fromUrl(imgRivalDesafio);
+      
+      // Enviamos la foto usando el texto como pie de foto (caption)
+      return await msg.reply(media, undefined, { caption: textoDesafio });
+      
+    } catch (error) {
+      console.error('Error al enviar la foto del desafío:', error);
+      // Fallback: Si por alguna razón falla la descarga de la imagen, enviamos al menos el texto
+      return await msg.reply(textoDesafio);
+    }
   }
 
   // ==========================================
@@ -81,7 +96,6 @@ async function handlePokechallenge(msg, texto) {
   }
 
   const desafio = npcDesafiosPendientes.get(whatsappId);
-  npcDesafiosPendientes.delete(whatsappId); // Consumir el desafío para evitar bugs
 
   // Verificar Pokémon del usuario
   const pokeInventario = await pokemonService.verificarYObtenerPokemon(whatsappId, nombrePokemon);
@@ -96,6 +110,8 @@ async function handlePokechallenge(msg, texto) {
       return await msg.reply(`⏳ Tu *${pokeInventario.nombre}* está exhausto por un combate reciente. Espera 5 minutos.`);
     }
   }
+
+  npcDesafiosPendientes.delete(whatsappId);
 
   await msg.reply(`⏳ ¡Desafío aceptado! *${usuario.nombre_whatsapp}* envía a *${pokeInventario.nombre}* contra el *${desafio.pokemonNombre}* de *${desafio.npcNombre}*...`);
 
