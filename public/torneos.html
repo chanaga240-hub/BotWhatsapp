@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Módulo de Torneos - PokéControl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/torneos.css">
+</head>
+<body>
+  <div class="tournament-app">
+    <header class="t-header">
+      <div class="t-brand">
+        <span class="t-icon">🏆</span>
+        <h2>Gestor de Torneos PokeMania</h2>
+      </div>
+      
+      <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem; margin-right: 20px;">
+        ← Volver al Gestor
+      </a>
+
+      <div class="t-status">
+        <span class="pulse-dot"></span>
+        Sistema Activo
+      </div>
+    </header>
+
+    <main class="t-main">
+      <section id="phase1" class="t-phase active">
+        <div class="t-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Selección de Participantes</h3>
+              <p>Elige al menos 3 entrenadores para generar el bracket.</p>
+            </div>
+            <div class="counter-badge">
+              Seleccionados: <strong id="selectedCount">0</strong>
+            </div>
+          </div>
+          
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Buscar entrenador por nombre o nivel...">
+          </div>
+
+          <div class="trainer-grid" id="trainerGrid">
+            </div>
+
+          <div class="action-bar">
+            <button id="btnGenerate" class="btn-cyber" disabled>
+              <span class="glitch-text">Generar Torneo</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="phase2" class="t-phase">
+        <div class="t-panel panel-bracket">
+          <div class="panel-head">
+            <div>
+              <h3>Llave del Torneo</h3>
+              <p>Haz clic en un entrenador dentro de su duelo para avanzarlo a la siguiente ronda.</p>
+            </div>
+            <button id="btnReset" class="btn-ghost">Nuevo Torneo</button>
+          </div>
+          
+          <div class="bracket-container">
+            <div class="bracket-wrapper" id="bracketVisual">
+              </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/torneos.js"></script>
+</body>
+</html>

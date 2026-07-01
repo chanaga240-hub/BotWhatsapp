@@ -187,6 +187,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokeevolucion') ||
         textoMinuscula.startsWith('#pokechallenge') ||
         textoMinuscula.startsWith('#pokevariantes') ||
+        textoMinuscula.startsWith('#ranking') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -264,6 +265,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#buy')) {
           const { handleBuy } = require('../commands/buy');
           return await handleBuy(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #ranking
+        // ==========================================
+        if (textoMinuscula.startsWith('#ranking')) {
+          const { handleRanking } = require('../commands/ranking'); // Verifica la ruta exacta de tu archivo
+          return await handleRanking(msg);
         }
 
         // ==========================================

@@ -35,7 +35,7 @@ async function handlePokeJob(msg) {
         `──────────────────────\n` +
         `🔨 *Labor:* _${nombre}_\n` +
         `📝 *Acción:* _${descripcion}_\n\n` +
-        `💰 *Paga:* ¡Has recibido *${ganancia} monedas* por tu esfuerzo!`;
+        `💰 *Paga:* *${ganancia} monedas* `;
 
       return await replyText(msg, mensajeTrabajo);
     }

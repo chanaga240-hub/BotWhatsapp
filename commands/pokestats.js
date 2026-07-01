@@ -1,6 +1,9 @@
 const usuarioService = require('../services/usuarioService');
 const pokemonService = require('../services/pokemonService');
+const { MessageMedia } = require('whatsapp-web.js');
 const { replyText } = require('../services/reply');
+const fs = require('fs');
+const path = require('path');
 
 async function handlePokeStats(msg, targetId = null) {
   try {
@@ -31,7 +34,17 @@ async function handlePokeStats(msg, targetId = null) {
       `🎒 *Pokéballs:* ${pokeballs}\r\n` +
       `📦 *Pokémon capturados:* ${totalCapturas}`;
 
-    await replyText(msg, mensaje);
+    const avatarPath = path.join(__dirname, '../avatars', `${whatsappId}.png`);
+
+    if (fs.existsSync(avatarPath)) {
+      const media = MessageMedia.fromFilePath(avatarPath);
+
+      await msg.reply(media, undefined, { caption: mensaje });
+    } else {
+
+      await replyText(msg, mensaje);
+    }
+
   } catch (error) {
     console.error('Error en #pokestats:', error);
     await replyText(msg, '⚠️ Hubo un error al obtener tus estadísticas. Inténtalo de nuevo.');

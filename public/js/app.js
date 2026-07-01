@@ -211,12 +211,19 @@ btnClearLogs.addEventListener('click', () => {
 // Navegación de secciones
 navItems.forEach((item) => {
   item.addEventListener('click', (e) => {
+    const href = item.getAttribute('href');
+    
+    // Si el enlace NO empieza con "#" (ej. "/torneos.html"), permitimos que cambie de página
+    if (!href.startsWith('#')) {
+      return; 
+    }
+
     e.preventDefault();
     navItems.forEach((n) => n.classList.remove('active'));
     item.classList.add('active');
 
     document.querySelectorAll('section').forEach((s) => s.classList.add('hidden'));
-    const targetId = item.getAttribute('href').substring(1);
+    const targetId = href.substring(1);
     const targetSection = document.getElementById(targetId);
     if (targetSection) targetSection.classList.remove('hidden');
 

@@ -286,8 +286,7 @@ async function handlePokechallenge(msg, texto) {
   }
 
   const labeledStickers = [
-    { label: `👤 ${usuario.nombre_whatsapp}: ${p1.nombre}`, url: imgJugador, stickerName: p1.nombre },
-    { label: `🎯 ${desafio.npcNombre}: ${p2.nombre}`, url: imgRival, stickerName: p2.nombre },
+    { label: `👤 ${usuario.nombre_whatsapp}: ${p1.nombre}`, url: imgJugador, stickerName: p1.nombre }
   ].filter(item => item.url);
 
   await replyWithLabeledStickers(msg, cronica, labeledStickers);
