@@ -565,7 +565,12 @@ class BotManager extends EventEmitter {
                 let idApi = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : nombreBase;
                 if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
 
-                const dataApi = await consultarPokemon(idApi).catch(() => consultarPokemon(nombreBase));
+                const dataApi = await consultarPokemon(idApi)
+                .catch(() => consultarPokemon(nombreBase))
+                .catch((err) => {
+                  this.log(`[Bot] Pokémon omitido en Pokédex por no encontrarse en la API: ${nombreBase}`, 'warn');
+                  return null;
+                });
                 if (dataApi) {
                   datosBloque.push({
                     nombre: p.nombre,

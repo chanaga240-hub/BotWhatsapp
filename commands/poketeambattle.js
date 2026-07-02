@@ -76,7 +76,7 @@ async function ejecutarMatchup(battleId, msgContext) {
     cronica += `⚡ _${turnoP1 ? p1Active.nombre : p2Active.nombre} ataca primero por velocidad._\r\n\r\n`;
 
     let rondas = 0;
-    while (p1Active.hp > 0 && p2Active.hp > 0 && rondas < 15) {
+    while (p1Active.hp > 0 && p2Active.hp > 0 && rondas < 50) {
         rondas++;
         cronica += `*ROUND ${rondas}* 🥊\r\n`; // Agregado el conteo de rondas
 
@@ -209,6 +209,10 @@ async function ejecutarMatchup(battleId, msgContext) {
             cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
         } else if (p2Caido) {
             cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
+        }else if (p1Active.hp > 0 && p2Active.hp > 0) {
+            cronica += `\n⚠️ ¡Ambos Pokémon han llegado a su límite de resistencia tras ${rondas} rondas y caen exhaustos por fatiga! ⚠️\n`;
+            p1Active.hp = 0;
+            p2Active.hp = 0;
         }
 
         await replyWithLabeledStickers(msgContext, cronica, [
