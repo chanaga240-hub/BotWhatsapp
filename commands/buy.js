@@ -1,5 +1,5 @@
 const usuarioService = require('../services/usuarioService');
-const tiendaService = require('../services/tiendaService'); // <--- NUEVO
+const tiendaService = require('../services/tiendaService'); 
 const { replyText } = require('../services/reply');
 
 async function handleBuy(msg, texto) {

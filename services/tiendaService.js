@@ -26,6 +26,8 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       producto = { nombre: "Poción_XP_Small", precioUnitario: 200, tipo: 'inventario' };
     } else if (codigo === '003') {
       producto = { nombre: "rocas_evolutivas", precioUnitario: 500, tipo: 'inventario' };
+    } else if (codigo === '004') {
+      producto = { nombre: "punta_adn", precioUnitario: 300, tipo: 'inventario' };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
