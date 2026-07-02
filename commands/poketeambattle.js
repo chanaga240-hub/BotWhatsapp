@@ -1,7 +1,8 @@
 const pokemonService = require('../services/pokemonService');
 const usuarioService = require('../services/usuarioService');
 const { consultarPokemon, getStat, getImagen, obtenerMultiplicadorLocal } = require('../services/pokeapi');
-const { replyWithLabeledStickers } = require('../services/reply');
+const { MessageMedia } = require('whatsapp-web.js'); 
+const { generarImagenVersus } = require('../services/canvasService'); 
 
 // Memoria de estado
 const pendingTeamChallenges = new Map();
@@ -187,16 +188,27 @@ async function ejecutarMatchup(battleId, msgContext) {
             }
         }
 
-        for (let p of battle.p1.team) await pokemonService.registrarCombate(p.atrapado_id);
         for (let p of battle.p2.team) await pokemonService.registrarCombate(p.atrapado_id);
         await pokemonService.reactivarEquipoCompleto(battle.p1.id);
         await pokemonService.reactivarEquipoCompleto(battle.p2.id);
 
         activeTeamBattles.delete(battleId);
-        await replyWithLabeledStickers(msgContext, cronica, [
-            { label: 'P1', url: p1Active.urlImagen, stickerName: p1Active.nombre },
-            { label: 'P2', url: p2Active.urlImagen, stickerName: p2Active.nombre }
-        ]);
+        
+        // --- NUEVO CÓDIGO DE IMAGEN VS ---
+        const bufferVersus = await generarImagenVersus(
+            { nombre: p1Active.nombre, url: p1Active.urlImagen },
+            { nombre: p2Active.nombre, url: p2Active.urlImagen }
+        );
+        const media = new MessageMedia('image/png', bufferVersus.toString('base64'), 'batalla_vs.png');
+
+        // Validación anti-crasheo por límite de 1024 caracteres en WhatsApp
+        if (cronica.length > 1024) {
+            await msgContext.reply(cronica);
+            await msgContext.reply(media);
+        } else {
+            await msgContext.reply(media, undefined, { caption: cronica });
+        }
+        // ---------------------------------
 
     } else {
         if (p1Caido) battle.p1.necesitaCambio = true;
@@ -215,10 +227,20 @@ async function ejecutarMatchup(battleId, msgContext) {
             p2Active.hp = 0;
         }
 
-        await replyWithLabeledStickers(msgContext, cronica, [
-            { label: 'P1', url: p1Active.urlImagen, stickerName: p1Active.nombre },
-            { label: 'P2', url: p2Active.urlImagen, stickerName: p2Active.nombre }
-        ]);
+        // --- NUEVO CÓDIGO DE IMAGEN VS ---
+        const bufferVersusContinuar = await generarImagenVersus(
+            { nombre: p1Active.nombre, url: p1Active.urlImagen },
+            { nombre: p2Active.nombre, url: p2Active.urlImagen }
+        );
+        const mediaContinuar = new MessageMedia('image/png', bufferVersusContinuar.toString('base64'), 'batalla_vs.png');
+
+        if (cronica.length > 1024) {
+            await msgContext.reply(cronica);
+            await msgContext.reply(mediaContinuar);
+        } else {
+            await msgContext.reply(mediaContinuar, undefined, { caption: cronica });
+        }
+        // ---------------------------------
     }
 }
 
