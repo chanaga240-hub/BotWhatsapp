@@ -58,15 +58,17 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       let columna = '';
       if (producto.nombre === 'Poción_XP_Small') columna = 'pocion_xp_small';
       else if (producto.nombre === 'rocas_evolutivas') columna = 'rocas_evolutivas';
+      else if (producto.nombre === 'punta_adn') columna = 'punta_adn';
 
       if (invRows.length === 0) {
         // Si NO tiene fila en inventario, la creamos y le asignamos la cantidad comprada de una vez
         const pocionInit = columna === 'pocion_xp_small' ? cantidad : 0;
         const rocasInit = columna === 'rocas_evolutivas' ? cantidad : 0;
+        const puntaAdnInit = columna === 'punta_adn' ? cantidad : 0;
         
         await connection.execute(
-          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas) VALUES (?, ?, 0, ?)',
-          [usuarioId, pocionInit, rocasInit]
+          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas, punta_adn) VALUES (?, ?, 0, ?, ?)',
+          [usuarioId, pocionInit, rocasInit, puntaAdnInit]
         );
       } else {
         // Si YA existe, simplemente actualizamos la cantidad sumando a lo que ya tenía

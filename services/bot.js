@@ -187,7 +187,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokeevolucion') ||
         textoMinuscula.startsWith('#pokechallenge') ||
         textoMinuscula.startsWith('#pokevariantes') ||
-        textoMinuscula.startsWith('#ranking') ||
+        textoMinuscula.startsWith('#mutar') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -268,11 +268,11 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #ranking
+        // COMANDO: #mutar
         // ==========================================
-        if (textoMinuscula.startsWith('#ranking')) {
-          const { handleRanking } = require('../commands/ranking'); // Verifica la ruta exacta de tu archivo
-          return await handleRanking(msg);
+        if (textoMinuscula.startsWith('#mutar')) {
+          const { handleMutar } = require('../commands/mutar'); 
+          return await handleMutar(msg, textoMinuscula);
         }
 
         // ==========================================
@@ -565,12 +565,7 @@ class BotManager extends EventEmitter {
                 let idApi = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : nombreBase;
                 if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
 
-                const dataApi = await consultarPokemon(idApi)
-                .catch(() => consultarPokemon(nombreBase))
-                .catch((err) => {
-                  this.log(`[Bot] Pokémon omitido en Pokédex por no encontrarse en la API: ${nombreBase}`, 'warn');
-                  return null;
-                });
+                const dataApi = await consultarPokemon(idApi).catch(() => consultarPokemon(nombreBase));
                 if (dataApi) {
                   datosBloque.push({
                     nombre: p.nombre,

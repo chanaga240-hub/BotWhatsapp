@@ -126,38 +126,55 @@ async function obtenerPokedex(whatsappId) {
     }
   }
 
-    /**
-     * Verifica si un usuario tiene un Pokémon específico por su nombre y extrae sus datos
-     */
-    async function verificarYObtenerPokemon(whatsappId, nombreOId) {
-    try {
-        const input = nombreOId.trim();
+/**
+ * Verifica si un usuario tiene un Pokémon específico por su nombre y extrae sus datos
+ */
+/**
+ * Verifica si un usuario tiene un Pokémon específico por su nombre (flexible) o ID, y extrae sus datos
+ */
+async function verificarYObtenerPokemon(whatsappId, nombreOId) {
+  try {
+      const input = nombreOId.trim();
 
-        // 1. Intentar buscar por nombre
-        let [rows] = await db.execute(
-            `SELECT pa.* FROM pokemon_atrapados pa
-             JOIN usuarios u ON pa.usuario_id = u.id
-             WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
-             LIMIT 1`,
-            [whatsappId, input]
-        );
+      // 1. Intentar buscar por coincidencia EXACTA (ignorando mayúsculas)
+      let [rows] = await db.execute(
+          `SELECT pa.* FROM pokemon_atrapados pa
+          JOIN usuarios u ON pa.usuario_id = u.id
+          WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
+          LIMIT 1`,
+          [whatsappId, input]
+      );
 
-        // 2. Si no se encontró por nombre, intentar buscar por ID (pokemon_id)
-        if (rows.length === 0) {
-            [rows] = await db.execute(
-                `SELECT pa.* FROM pokemon_atrapados pa
-                 JOIN usuarios u ON pa.usuario_id = u.id
-                 WHERE u.whatsapp_id = ? AND pa.pokemon_id = ?
-                 LIMIT 1`,
-                [whatsappId, input]
-            );
-        }
+      // 2. Si no se encontró y el input es un número, intentar buscar por ID (pokemon_id)
+      if (rows.length === 0 && !isNaN(input)) {
+          [rows] = await db.execute(
+              `SELECT pa.* FROM pokemon_atrapados pa
+              JOIN usuarios u ON pa.usuario_id = u.id
+              WHERE u.whatsapp_id = ? AND pa.pokemon_id = ?
+              LIMIT 1`,
+              [whatsappId, input]
+          );
+      }
 
-        return rows.length > 0 ? rows[0] : null;
-    } catch (error) {
-        console.error('Error al verificar Pokémon de la Pokedex:', error);
-        return null;
-    }
+      // 3. Búsqueda FLEXIBLE (coincidencia parcial con LIKE)
+      // Esto atrapará casos donde el usuario escriba una parte del nombre o el Pokémon tenga sufijos (ej: "kyurem" atrapa "kyurem-black")
+      if (rows.length === 0) {
+          const inputFlexible = `%${input}%`;
+          
+          [rows] = await db.execute(
+              `SELECT pa.* FROM pokemon_atrapados pa
+              JOIN usuarios u ON pa.usuario_id = u.id
+              WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) LIKE LOWER(?)
+              LIMIT 1`,
+              [whatsappId, inputFlexible]
+          );
+      }
+
+      return rows.length > 0 ? rows[0] : null;
+  } catch (error) {
+      console.error('Error al verificar Pokémon de la Pokedex:', error);
+      return null;
+  }
 }
 
 async function contarCapturas(whatsappId) {
@@ -505,6 +522,62 @@ async function evolucionarPokemon(usuarioId, pokemonAtrapadoId, nuevoPokemonId, 
   }
 }
 
+/**
+ * Aplica la Punta ADN a un Pokémon, actualizando su estado y restando el ítem del inventario.
+ */
+async function aplicarPuntaAdn(whatsappId, pokemonAtrapadoId) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Restar 1 Punta ADN del inventario del usuario
+    const [result] = await connection.execute(
+      `UPDATE inventario i 
+       JOIN usuarios u ON i.usuario_id = u.id 
+       SET i.punta_adn = i.punta_adn - 1 
+       WHERE u.whatsapp_id = ? AND i.punta_adn > 0`,
+      [whatsappId]
+    );
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return false; // No había ítem disponible
+    }
+
+    // 2. Actualizar el campo punta_adn del Pokémon específico a true
+    await connection.execute(
+      'UPDATE pokemon_atrapados SET punta_adn = true WHERE id = ?',
+      [pokemonAtrapadoId]
+    );
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en aplicarPuntaAdn:', error);
+    return false;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Cambia la variante de un Pokémon si tiene el campo punta_adn en true.
+ */
+async function cambiarVariantePokemon(pokemonAtrapadoId, nuevoPokemonId, nuevoNombre) {
+  try {
+    // Actualizamos solo el ID y el nombre, conservando el resto de datos
+    const [result] = await db.execute(
+      'UPDATE pokemon_atrapados SET pokemon_id = ?, nombre = ? WHERE id = ?',
+      [nuevoPokemonId, nuevoNombre, pokemonAtrapadoId]
+    );
+    return result.affectedRows > 0;
+  } catch (error) {
+    console.error('Error al cambiar variante en BD:', error);
+    return false;
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -522,5 +595,7 @@ module.exports = {
   obtenerEquipoPokemon,
   cambiarEstadoEquipo,
   reactivarEquipoCompleto,
-  evolucionarPokemon
+  evolucionarPokemon,
+  aplicarPuntaAdn,
+  cambiarVariantePokemon
 };

@@ -1,6 +1,6 @@
 const pokemonService = require('../services/pokemonService');
 const usuarioService = require('../services/usuarioService');
-const { consultarPokemon, getEvolucionesInmediatas, formatName } = require('../services/pokeapi');
+const { consultarPokemon, getEvolucionesInmediatas, formatName, getVariantesPokemon } = require('../services/pokeapi');
 const { replyText } = require('../services/reply');
 
 async function handleUse(msg, texto) {
@@ -139,6 +139,41 @@ async function handleUse(msg, texto) {
       return await replyText(msg, `🎉 ¡Qué increíble!\n\n✨ Tu *${pokemon.nombre}* ha evolucionado a *${nuevoNombreFormateado}* ✨\n\n💎 Has gastado ${rocasNecesarias} Roca(s) Evolutiva(s).`);
     } else {
       return await replyText(msg, '⚠️ Hubo un error interno al guardar la evolución en tu base de datos.');
+    }
+  }
+
+  // ==========================================
+  // LÓGICA: PUNTA ADN
+  // ==========================================
+  if (item === 'punta_adn') {
+    const nombrePokemon = partes.slice(1).join(' ');
+    const pokemon = await pokemonService.verificarYObtenerPokemon(whatsappId, nombrePokemon);
+
+    if (!pokemon) {
+      return await replyText(msg, '❌ No tienes un Pokémon con ese nombre.');
+    }
+
+    // 1. Validar si tiene variantes en la PokeAPI
+    const data = await consultarPokemon(pokemon.pokemon_id);
+    const variantes = await getVariantesPokemon(data);
+
+    if (variantes.length <= 1) {
+      return await replyText(msg, `⚠️ *${pokemon.nombre}* no tiene variantes disponibles para usar la Punta ADN.`);
+    }
+
+    // 2. Verificar inventario
+    const inventario = await usuarioService.obtenerInventarioCompleto(whatsappId);
+    if (!inventario || !inventario.punta_adn || inventario.punta_adn <= 0) {
+      return await replyText(msg, '🧬 No tienes ninguna Punta ADN en tu inventario.');
+    }
+
+    // 3. Ejecutar el cambio (requiere crear esta función en pokemonService)
+    const exito = await pokemonService.aplicarPuntaAdn(whatsappId, pokemon.id);
+
+    if (exito) {
+      return await replyText(msg, `🧬 ¡Has usado la Punta ADN en *${pokemon.nombre}* con éxito!`);
+    } else {
+      return await replyText(msg, '⚠️ Hubo un error al intentar modificar el ADN de tu Pokémon.');
     }
   }
 
