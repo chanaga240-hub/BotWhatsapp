@@ -19,7 +19,7 @@ function drawRoundRect(ctx, x, y, width, height, radius, fill, stroke) {
 
 async function generarCollagePokemon(listaPokemonData) {
   const colCount = 2;
-  const rowCount = 3;
+  const rowCount = 4;
   const cardWidth = 460; 
   const cardHeight = 260; 
   const margin = 25;
@@ -66,7 +66,7 @@ async function generarCollagePokemon(listaPokemonData) {
     ctx.fillStyle = '#94a3b8';
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`Nv. ${p.nivel || 50}`, x + cardWidth - 20, y + 40);
+    ctx.fillText(`Nv. ${p.nivel || 1} | ${p.experiencia || 0} XP`, x + cardWidth - 20, y + 40);
     ctx.textAlign = 'left'; 
 
     // Línea separadora
@@ -90,7 +90,7 @@ async function generarCollagePokemon(listaPokemonData) {
     const startY = y + 80;
     const barWidth = 200; // Barra un poco más ancha
     const barHeight = 16; // Barra un poco más alta para que quepa el número
-    const maxStat = 255; 
+    const maxStat = 500; 
 
     statsInfo.forEach((stat, index) => {
       const currentY = startY + (index * 28);
@@ -153,4 +153,50 @@ async function generarCollagePokemon(listaPokemonData) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { generarCollagePokemon };
+async function generarImagenVersus(poke1, poke2) {
+  const canvasWidth = 600;
+  const canvasHeight = 320;
+  const canvas = createCanvas(canvasWidth, canvasHeight);
+  const ctx = canvas.getContext('2d');
+
+  // Fondo oscuro del campo de batalla
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  // Renderizado de Sprites
+  try {
+    if (poke1.url) {
+      const img1 = await loadImage(poke1.url);
+      ctx.drawImage(img1, 40, 40, 200, 200);
+    }
+    if (poke2.url) {
+      const img2 = await loadImage(poke2.url);
+      ctx.drawImage(img2, 360, 40, 200, 200);
+    }
+  } catch (error) {
+    console.error('Error cargando sprites para el VS:', error);
+  }
+
+  // Renderizado del "VS" central
+  ctx.fillStyle = '#ef4444'; // Rojo vibrante
+  ctx.font = 'bold 70px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  // Sombreado para resaltar el texto
+  ctx.shadowColor = '#000000';
+  ctx.shadowBlur = 10;
+  ctx.fillText('VS', canvasWidth / 2, canvasHeight / 2 - 20);
+  ctx.shadowBlur = 0; // Resetear sombra
+
+  // Nombres de los contrincantes
+  ctx.fillStyle = '#f8fafc'; // Blanco
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(poke1.nombre.toUpperCase(), 140, 280);
+  ctx.fillText(poke2.nombre.toUpperCase(), 460, 280);
+
+  return canvas.toBuffer('image/png');
+}
+
+// No olvides exportarla al final del archivo:
+module.exports = { generarCollagePokemon, generarImagenVersus };

@@ -187,6 +187,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokeevolucion') ||
         textoMinuscula.startsWith('#pokechallenge') ||
         textoMinuscula.startsWith('#pokevariantes') ||
+        textoMinuscula.startsWith('#ranking') ||
         textoMinuscula.startsWith('#mutar') ||
         textoMinuscula === '#pokehelp';
 
@@ -289,6 +290,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#pay')) {
           const { handlePay } = require('../commands/pay');
           return await handlePay(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #ranking
+        // ==========================================
+        if (textoMinuscula.startsWith('#ranking')) {
+          const { handleRanking} = require('../commands/ranking');
+          return await handleRanking(msg, textoMinuscula);
         }
         
         // ==========================================
@@ -547,15 +556,13 @@ class BotManager extends EventEmitter {
 
             const chatPrivadoId = msg.fromMe ? this.client.info.wid._serialized : (msg.author || msg.from);
 
-            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 6 Pokémon...`);
+            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 8 Pokémon...`);
 
-            // 1. Fragmentar lista en bloques de 6
             const bloques = [];
-            for (let i = 0; i < listaPokemon.length; i += 6) {
-              bloques.push(listaPokemon.slice(i, i + 6));
+            for (let i = 0; i < listaPokemon.length; i += 8) {
+              bloques.push(listaPokemon.slice(i, i + 8));
             }
 
-            // 2. Procesar bloques
             for (const [index, bloque] of bloques.entries()) {
               const datosBloque = [];
 
@@ -566,22 +573,27 @@ class BotManager extends EventEmitter {
                 if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
 
                 const dataApi = await consultarPokemon(idApi).catch(() => consultarPokemon(nombreBase));
+                
                 if (dataApi) {
+                  // --- LÓGICA DE BUFOS DE NIVEL APLICADA AQUÍ ---
+                  const nivelActual = p.nivel || 1;
+                  const multNivel = 1 + (nivelActual - 1) * 0.05;
+
                   datosBloque.push({
                     nombre: p.nombre,
-                    nivel: p.nivel,
-                    hp: getStat(dataApi, 'hp'),
-                    atk: getStat(dataApi, 'attack'),
-                    def: getStat(dataApi, 'defense'),
-                    spAtk: getStat(dataApi, 'special-attack'),
-                    spDef: getStat(dataApi, 'special-defense'),
-                    vel: getStat(dataApi, 'speed'),
+                    nivel: nivelActual,
+                    experiencia: p.experiencia || 0, // <-- Nueva propiedad agregada
+                    hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
+                    atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
+                    def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),
+                    spAtk: Math.floor((getStat(dataApi, 'special-attack') || 0) * multNivel),
+                    spDef: Math.floor((getStat(dataApi, 'special-defense') || 0) * multNivel),
+                    vel: Math.floor((getStat(dataApi, 'speed') || 0) * multNivel),
                     spriteUrl: getImagen(dataApi)
                   });
                 }
               }
 
-              // 3. Generar y enviar collage
               const imageBuffer = await generarCollagePokemon(datosBloque);
               const media = new MessageMedia('image/png', imageBuffer.toString('base64'), `pokedex_${index}.png`);
 

@@ -111,11 +111,11 @@ async function restarPokeball(usuarioId) {
 async function obtenerPokedex(whatsappId) {
     try {
       const [rows] = await db.execute(
-        `SELECT pa.nombre, pa.nivel, COUNT(*) as cantidad 
+        `SELECT pa.nombre, pa.nivel, pa.experiencia, COUNT(*) as cantidad 
          FROM pokemon_atrapados pa
          JOIN usuarios u ON pa.usuario_id = u.id
          WHERE u.whatsapp_id = ?
-         GROUP BY pa.nombre, pa.nivel
+         GROUP BY pa.nombre, pa.nivel, pa.experiencia
          ORDER BY pa.nombre ASC`,
         [whatsappId]
       );

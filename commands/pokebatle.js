@@ -1,4 +1,5 @@
 const usuarioService = require('../services/usuarioService');
+const { MessageMedia } = require('whatsapp-web.js');
 
 const {
   consultarPokemon,
@@ -7,7 +8,9 @@ const {
   obtenerMultiplicadorLocal
 } = require('../services/pokeapi');
 const { replyWithLabeledStickers } = require('../services/reply');
+
 const pokemonService = require('../services/pokemonService');
+const { generarImagenVersus } = require('../services/canvasService');
 
 const desafiosPendientes = new Map();
 
@@ -333,11 +336,19 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       }
     }
 
-    const labeledStickers = [
-      { label: `👤 ${desafio.nombreRetadorText}: ${p1.nombre}`, url: imgJugador, stickerName: p1.nombre },
-      { label: `🎯 ${desafio.nombreRivalText}: ${p2.nombre}`, url: imgRival, stickerName: p2.nombre },
-    ].filter((item) => item.url);
+    // Generamos el buffer de la imagen VS
+    const bufferVersus = await generarImagenVersus(
+      { nombre: p1.nombre, url: imgJugador },
+      { nombre: p2.nombre, url: imgRival }
+    );
 
+    // Lo convertimos a formato MessageMedia
+    const media = new MessageMedia('image/png', bufferVersus.toString('base64'), 'batalla_vs.png');
+
+    // Intentamos enviarlo todo como un solo mensaje (Imagen + Crónica de descripción)
+    await msg.reply(media, undefined, { caption: cronica });
+
+    // Promesas de registro en base de datos (se mantienen igual)
     try {
       const promesas = [];
       if (desafio.pokemonRetador && desafio.pokemonRetador.id) promesas.push(pokemonService.registrarCombate(desafio.pokemonRetador.id));
@@ -347,11 +358,8 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       console.error('Error registrando combates en BD:', e);
     }
 
-    await replyWithLabeledStickers(msg, cronica, labeledStickers);
-
   } catch (error) {
     console.error('Error procesando aceptación de pokebatle:', error);
   }
 }
-
 module.exports = { handlePokebatle, handlePokeaccept };
