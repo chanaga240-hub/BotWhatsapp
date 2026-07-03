@@ -695,6 +695,139 @@ async function reclamarExpedicion(expedicion) {
   }
 }
 
+// ==========================================
+// FUNCIONES DE INCUBADORA
+// ==========================================
+
+async function usarHuevoIncubadora(whatsappId) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Obtener ID interno del usuario
+    const [usuarios] = await connection.execute('SELECT id FROM usuarios WHERE whatsapp_id = ?', [whatsappId]);
+    if (usuarios.length === 0) {
+      await connection.rollback();
+      return { error: 'usuario_no_encontrado' };
+    }
+    const usuarioId = usuarios[0].id;
+
+    // 2. Verificar si tiene un huevo en el inventario
+    const [inv] = await connection.execute(
+      'SELECT egg FROM inventario WHERE usuario_id = ? FOR UPDATE',
+      [usuarioId]
+    );
+
+    if (!inv[0] || inv[0].egg <= 0) {
+      await connection.rollback();
+      return { error: 'sin_objetos' };
+    }
+
+    // 3. Verificar si YA tiene un huevo en la incubadora
+    const [incubando] = await connection.execute(
+      'SELECT id FROM incubadora WHERE usuario_id = ?',
+      [usuarioId]
+    );
+    
+    if (incubando.length > 0) {
+      await connection.rollback();
+      return { error: 'ya_incubando' };
+    }
+
+    // 4. Descontar el huevo del inventario
+    await connection.execute(
+      'UPDATE inventario SET egg = egg - 1 WHERE usuario_id = ?',
+      [usuarioId]
+    );
+
+    // 5. Insertar en la tabla incubadora
+    // fecha_inicio se pondrá sola por el DEFAULT CURRENT_TIMESTAMP que configuraste
+    await connection.execute(
+      'INSERT INTO incubadora (usuario_id) VALUES (?)',
+      [usuarioId]
+    );
+
+    await connection.commit();
+    return { success: true };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al usar huevo en incubadora:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
+async function revisarIncubadora(whatsappId) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [usuarios] = await connection.execute('SELECT id FROM usuarios WHERE whatsapp_id = ?', [whatsappId]);
+    if (usuarios.length === 0) {
+      await connection.rollback();
+      return { error: 'usuario_no_encontrado' };
+    }
+    const usuarioId = usuarios[0].id;
+
+    // Obtener TODOS los huevos del usuario
+    const [incubando] = await connection.execute(
+      'SELECT id, fecha_inicio FROM incubadora WHERE usuario_id = ? FOR UPDATE',
+      [usuarioId]
+    );
+    
+    if (incubando.length === 0) {
+      await connection.rollback();
+      return { estado: 'vacio' };
+    }
+
+    const ahora = new Date();
+    const tiempoRequeridoMs = 20 * 60 * 60 * 1000; 
+    let huevosEclosionados = [];
+    let huevosEnEspera = [];
+
+    // Evaluar cada huevo individualmente
+    for (const huevo of incubando) {
+      const inicio = new Date(huevo.fecha_inicio);
+      const tiempoPasadoMs = ahora - inicio;
+
+      if (tiempoPasadoMs >= tiempoRequeridoMs) {
+        // Ya pasaron 24h: Eclosionar
+        await connection.execute('DELETE FROM incubadora WHERE id = ?', [huevo.id]);
+        
+        const bebesIds = [172, 173, 174, 175, 236, 238, 239, 240, 298, 360, 406, 433, 438, 439, 440, 446, 447, 458, 848];
+        const randomPokemonId = bebesIds[Math.floor(Math.random() * bebesIds.length)];
+        
+        huevosEclosionados.push(randomPokemonId);
+      } else {
+        // Aún le falta tiempo
+        const restanteMs = tiempoRequeridoMs - tiempoPasadoMs;
+        huevosEnEspera.push({
+          horas: Math.floor(restanteMs / (1000 * 60 * 60)),
+          minutos: Math.floor((restanteMs % (1000 * 60 * 60)) / (1000 * 60))
+        });
+      }
+    }
+
+    await connection.commit();
+
+    // Retornamos el reporte completo
+    return { 
+      estado: huevosEclosionados.length > 0 ? 'eclosionados' : 'incubando', 
+      nacimientos: huevosEclosionados,
+      enEspera: huevosEnEspera,
+      usuarioId: usuarioId 
+    };
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al revisar incubadora:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -717,5 +850,7 @@ module.exports = {
   cambiarVariantePokemon,
   reclamarExpedicion,
   enviarExpedicion,
-  obtenerExpediciones
+  obtenerExpediciones,
+  usarHuevoIncubadora,
+  revisarIncubadora
 };

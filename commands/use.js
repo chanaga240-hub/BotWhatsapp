@@ -6,9 +6,10 @@ const { replyText } = require('../services/reply');
 async function handleUse(msg, texto) {
   const partes = texto.replace('#use', '').trim().split(' ');
   const item = partes[0]?.toLowerCase();
+  const requierePokemon = !['egg', 'huevo'].includes(item);
 
-  if (!item || partes.length < 2) {
-    return await replyText(msg, '❌ Formato: `#use [objeto] (nombre_pokemon)`\n👉 Ejemplo: `#use rocas_evolutivas Pikachu`');
+  if (!item || (requierePokemon && partes.length < 2)) {
+    return await replyText(msg, '❌ Formato: `#use [objeto] (nombre_pokemon)`\n👉 Ejemplo: `#use rocas_evolutivas Pikachu`\n👉 Para incubar: `#use egg`');
   }
 
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
@@ -174,6 +175,26 @@ async function handleUse(msg, texto) {
       return await replyText(msg, `🧬 ¡Has usado la Punta ADN en *${pokemon.nombre}* con éxito!`);
     } else {
       return await replyText(msg, '⚠️ Hubo un error al intentar modificar el ADN de tu Pokémon.');
+    }
+  }
+
+  // ==========================================
+  // LÓGICA: HUEVO (EGG)
+  // ==========================================
+  if (item === 'egg') {
+    const resultado = await pokemonService.usarHuevoIncubadora(whatsappId);
+    
+    if (resultado.error === 'sin_objetos') {
+      return await replyText(msg, '🥚 No tienes ningún Huevo en tu inventario. ¡Puedes comprarlo en la tienda!');
+    } else if (resultado.error === 'limite_alcanzado') {
+      // NUEVO MENSAJE DE LÍMITE
+      return await replyText(msg, '🛑 Límite alcanzado: Ya tienes el máximo de 3 huevos en tu incubadora en este momento.');
+    } else if (resultado.error === 'usuario_no_encontrado') {
+      return await replyText(msg, '❌ No estás registrado.');
+    } else if (resultado.error === 'db_error') {
+      return await replyText(msg, '⚠️ Hubo un error interno al intentar colocar el huevo en la incubadora.');
+    } else if (resultado.success) {
+      return await replyText(msg, '🥚♨️ ¡Has colocado un Huevo en la incubadora con éxito!\n\nDeberás cuidarlo y esperar *24 horas* para que eclosione.');
     }
   }
 

@@ -190,6 +190,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#ranking') ||
         textoMinuscula.startsWith('#mutar') ||
         textoMinuscula.startsWith('#expedicion') ||
+        textoMinuscula === '#incubadora' ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -242,6 +243,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#expedicion')) {
             const { handleExpedicion } = require('../commands/expedicion');
             return await handleExpedicion(msg, texto);
+        }
+
+        // ==========================================
+        // COMANDO: #incubadora
+        // ==========================================
+        if (textoMinuscula === '#incubadora') {
+          const { handleIncubadora } = require('../commands/incubadora');
+          return await handleIncubadora(msg);
         }
 
         // ==========================================

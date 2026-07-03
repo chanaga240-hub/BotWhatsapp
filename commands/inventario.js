@@ -17,6 +17,7 @@ async function handleInventario(msg) {
     mensaje += `🧪 *pocion_xp:* ${inv.pocion_xp_small}\n`;
     mensaje += `🪨 *rocas_evolutivas:* ${inv.rocas_evolutivas}\n`;
     mensaje += `🧬 *punta_adn:* ${inv.punta_adn}\n`;
+    mensaje += `🥚 *egg:* ${inv.egg}\n`;
     mensaje += `──────────────────────\n`;
     mensaje += `👉 _Usa #buy para adquirir más objetos._`;
 
