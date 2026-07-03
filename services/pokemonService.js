@@ -578,6 +578,123 @@ async function cambiarVariantePokemon(pokemonAtrapadoId, nuevoPokemonId, nuevoNo
   }
 }
 
+// ==========================================
+// FUNCIONES DE EXPEDICIÓN
+// ==========================================
+
+async function obtenerExpediciones(whatsappId) {
+  try {
+    const [rows] = await db.execute(`
+      SELECT e.id as expedicion_id, e.fecha_inicio, e.duracion_dias,
+             pa.id as pokemon_id, pa.nombre, pa.nivel, pa.experiencia,
+             u.id as usuario_id
+      FROM expedicion e
+      JOIN pokemon_atrapados pa ON e.pokemon_id = pa.id
+      JOIN usuarios u ON e.usuario_id = u.id
+      WHERE u.whatsapp_id = ?
+    `, [whatsappId]);
+    return rows;
+  } catch (error) {
+    console.error('Error al obtener expediciones:', error);
+    return [];
+  }
+}
+
+async function enviarExpedicion(whatsappId, nombrePokemon, dias) {
+  const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
+  if (!pokemon) return { error: 'pokemon_no_encontrado' };
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Validar límite máximo de 3 expediciones
+    const [expRows] = await connection.execute(
+      'SELECT COUNT(*) as total FROM expedicion WHERE usuario_id = ?',
+      [pokemon.usuario_id]
+    );
+    if (expRows[0].total >= 3) {
+      await connection.rollback();
+      return { error: 'limite_alcanzado' };
+    }
+
+    // 2. Validar que ESTE Pokémon no esté ya en una expedición
+    const [pokeExp] = await connection.execute(
+      'SELECT id FROM expedicion WHERE pokemon_id = ?',
+      [pokemon.id]
+    );
+    if (pokeExp.length > 0) {
+      await connection.rollback();
+      return { error: 'ya_en_expedicion' };
+    }
+
+    // 3. Validar que el Pokémon NO esté en el equipo titular
+    const [enEquipo] = await connection.execute(
+      'SELECT jerarquia FROM equipo_pokemon WHERE pokemon_id = ?',
+      [pokemon.id]
+    );
+    if (enEquipo.length > 0) {
+      await connection.rollback();
+      return { error: 'en_equipo', posicion: enEquipo[0].jerarquia };
+    }
+
+    // 4. Insertar la expedición
+    await connection.execute(
+      'INSERT INTO expedicion (usuario_id, pokemon_id, duracion_dias) VALUES (?, ?, ?)',
+      [pokemon.usuario_id, pokemon.id, dias]
+    );
+
+    await connection.commit();
+    return { success: true, pokemon: pokemon.nombre };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en enviarExpedicion:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
+async function reclamarExpedicion(expedicion) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Eliminar de la tabla expedición
+    await connection.execute('DELETE FROM expedicion WHERE id = ?', [expedicion.expedicion_id]);
+
+    // 2. Otorgar monedas (50 por cada día)
+    const monedasGanadas = 50 * expedicion.duracion_dias;
+    await connection.execute('UPDATE usuarios SET monedas = monedas + ? WHERE id = ?', [monedasGanadas, expedicion.usuario_id]);
+
+    // 3. Otorgar 50 de XP plana y revisar si sube de nivel
+    let nivelActual = expedicion.nivel || 1;
+    let expActual = (expedicion.experiencia || 0) + (50 * expedicion.duracion_dias);
+    let xpNecesaria = 100 + ((nivelActual - 1) * 25);
+    let subioNivel = false;
+
+    if (expActual >= xpNecesaria) {
+        nivelActual++;
+        expActual = expActual - xpNecesaria;
+        subioNivel = true;
+    }
+
+    await connection.execute(
+        'UPDATE pokemon_atrapados SET experiencia = ?, nivel = ? WHERE id = ?',
+        [expActual, nivelActual, expedicion.pokemon_id]
+    );
+
+    await connection.commit();
+    return { success: true, monedas: monedasGanadas, subioNivel, nuevoNivel: nivelActual };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al reclamar expedición:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   restarPokeball,
@@ -597,5 +714,8 @@ module.exports = {
   reactivarEquipoCompleto,
   evolucionarPokemon,
   aplicarPuntaAdn,
-  cambiarVariantePokemon
+  cambiarVariantePokemon,
+  reclamarExpedicion,
+  enviarExpedicion,
+  obtenerExpediciones
 };

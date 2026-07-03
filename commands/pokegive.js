@@ -54,6 +54,11 @@ async function handlePokeGive(msg, textoCompleto) {
         return await msg.reply(`🛡️ No puedes donar a *${pokemon.nombre}* porque está asignado a la posición ${enEquipo.jerarquia} de tu equipo titular. ¡Sácalo del equipo si deseas transferirlo!`);
     }
 
+    const expediciones = await pokemonService.obtenerExpediciones(remitenteId);
+    if (expediciones.find(p => p.pokemon_id === pokemon.id)) {
+        return await msg.reply(`🏕️ No puedes donar a *${pokemon.nombre}* porque se encuentra de expedición en este momento. Espera su regreso.`);
+    }
+
     const transferencia = await pokemonService.transferirPokemon(pokemon.id, destinatario.id);
     if (!transferencia) {
       return await msg.reply('⚠️ No se pudo completar la donación. Intenta de nuevo más tarde.');

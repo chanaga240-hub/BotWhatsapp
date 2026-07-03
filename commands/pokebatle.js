@@ -58,6 +58,11 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply(`❌ No tienes a ningún *${nombrePokemonBuscado}* registrado en tu Pokédex.`);
     }
 
+    const expedicionesRetador = await pokemonService.obtenerExpediciones(idRetador);
+    if (expedicionesRetador.find(p => p.pokemon_id === pokeInventarioRetador.id)) {
+      return await msg.reply(`🏕️ Tu *${pokeInventarioRetador.nombre}* está de expedición. ¡Espera a que regrese para luchar!`);
+    }
+
     try {
       const cooldownMs = 5 * 60 * 1000;
       if (pokeInventarioRetador.fecha_ultimo_combate) {
@@ -115,6 +120,11 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     const pokeInventarioRival = await pokemonService.verificarYObtenerPokemon(idRival, nombrePokemonBuscado);
     if (!pokeInventarioRival) {
       return await msg.reply(`❌ No tienes a ningún *${nombrePokemonBuscado}* registrado en tu Pokédex.`);
+    }
+
+    const expedicionesRival = await pokemonService.obtenerExpediciones(idRival);
+    if (expedicionesRival.find(p => p.pokemon_id === pokeInventarioRival.id)) {
+      return await msg.reply(`🏕️ Tu *${pokeInventarioRival.nombre}* está de expedición. ¡No puedes defenderte con él!`);
     }
 
     const desafio = desafiosPendientes.get(idRival);

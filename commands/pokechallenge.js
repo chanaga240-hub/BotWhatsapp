@@ -120,6 +120,11 @@ async function handlePokechallenge(msg, texto) {
     return await msg.reply(`❌ No tienes a ningún *${nombrePokemon}* registrado en tu Pokédex.`);
   }
 
+  const expedicionesJugador = await pokemonService.obtenerExpediciones(whatsappId);
+  if (expedicionesJugador.find(p => p.pokemon_id === pokeInventario.id)) {
+      return await msg.reply(`🏕️ Tu *${pokeInventario.nombre}* está explorando en una expedición. ¡Elige a otro para este desafío!`);
+  }
+
   // Verificar cooldown de heridas (5 min) igual que en pokebatle
   if (pokeInventario.fecha_ultimo_combate) {
     const ultima = new Date(pokeInventario.fecha_ultimo_combate);

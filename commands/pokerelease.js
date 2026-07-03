@@ -24,7 +24,12 @@ async function handlePokerelease(msg, texto, botManager, usuario) {
         if (enEquipo) {
             return await msg.reply(`🛡️ No puedes liberar a *${poke.nombre}* porque forma parte de tu equipo titular (Posición ${enEquipo.jerarquia}).`);
         }
-        // ----------------------------------------
+
+        // --- NUEVA VALIDACIÓN: EXPEDICIÓN ---
+        const expediciones = await pokemonService.obtenerExpediciones(whatsappId);
+        if (expediciones.find(p => p.pokemon_id === poke.id)) {
+            return await msg.reply(`🏕️ No puedes liberar a *${poke.nombre}* porque se encuentra de expedición. Debes esperar a que regrese al campamento.`);
+        }
 
         botManager.log(`[Bot] Pokémon encontrado en BD: id=${poke.id} especie=${poke.nombre} nivel=${poke.nivel}`, 'info');
 
