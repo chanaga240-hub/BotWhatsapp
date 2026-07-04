@@ -277,6 +277,35 @@ async function getVariantesPokemon(pokemon) {
   }
 }
 
+async function obtenerPokemonBebeAleatorio() {
+  let idEncontrado = null;
+
+  while (!idEncontrado) {
+    const randomId = randomPokemonId(); 
+    
+    try {
+      // 1. Consultamos los detalles de la especie
+      const speciesData = await fetchJson(`https://pokeapi.co/api/v2/pokemon-species/${randomId}`);
+      
+      // 2. Buscamos su cadena evolutiva
+      const chainData = await fetchJson(speciesData.evolution_chain.url);
+
+      // 3. Extraemos SIEMPRE el primer Pokémon de la cadena (Forma Base)
+      // Esto automáticamente incluye a los bebés reales y a todas las primeras evoluciones
+      const nombreBase = chainData.chain.species.name; 
+      
+      const dataBase = await consultarPokemon(nombreBase);
+      idEncontrado = dataBase.id; 
+      
+    } catch (error) {
+      // Si la API falla por algún ID extraño o variante, lo ignoramos y buscamos otro
+      console.error('Error buscando forma base, intentando con otro...');
+    }
+  }
+
+  return idEncontrado;
+}
+
 // Asegúrate de agregar estas funciones al module.exports existente:
 module.exports = {
   consultarPokemon,
@@ -292,5 +321,6 @@ module.exports = {
   calcularProbabilidadCaptura,
   obtenerMultiplicadorLocal,
   getEvolucionesInmediatas,
-  getVariantesPokemon
+  getVariantesPokemon,
+  obtenerPokemonBebeAleatorio
 };

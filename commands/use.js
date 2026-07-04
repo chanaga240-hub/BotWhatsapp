@@ -194,7 +194,7 @@ async function handleUse(msg, texto) {
     } else if (resultado.error === 'db_error') {
       return await replyText(msg, '⚠️ Hubo un error interno al intentar colocar el huevo en la incubadora.');
     } else if (resultado.success) {
-      return await replyText(msg, '🥚♨️ ¡Has colocado un Huevo en la incubadora con éxito!\n\nDeberás cuidarlo y esperar *24 horas* para que eclosione.');
+      return await replyText(msg, '🥚♨️ ¡Has colocado un Huevo en la incubadora con éxito!\n\nDeberás cuidarlo y esperar *20 horas* para que eclosione.');
     }
   }
 

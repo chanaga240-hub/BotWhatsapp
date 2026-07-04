@@ -190,6 +190,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#ranking') ||
         textoMinuscula.startsWith('#mutar') ||
         textoMinuscula.startsWith('#expedicion') ||
+        textoMinuscula.startsWith('#trivia') ||
         textoMinuscula === '#incubadora' ||
         textoMinuscula === '#pokehelp';
 
@@ -243,6 +244,15 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#expedicion')) {
             const { handleExpedicion } = require('../commands/expedicion');
             return await handleExpedicion(msg, texto);
+        }
+
+        // ==========================================
+        // COMANDO: #trivia
+        // ==========================================
+        if (textoMinuscula === '#trivia') {
+          const { handleTrivia } = require('../commands/trivia');
+          // Pasamos this.client para poder enviar mensajes al privado
+          return await handleTrivia(msg, this.client);
         }
 
         // ==========================================

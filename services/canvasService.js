@@ -198,5 +198,26 @@ async function generarImagenVersus(poke1, poke2) {
   return canvas.toBuffer('image/png');
 }
 
+async function generarSilueta(urlImagen) {
+  try {
+    const img = await loadImage(urlImagen);
+    const canvas = createCanvas(img.width, img.height);
+    const ctx = canvas.getContext('2d');
+
+    // Dibujar la imagen original
+    ctx.drawImage(img, 0, 0);
+
+    // Cambiar la composición para pintar solo donde ya hay pixeles no transparentes
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = '#000000'; // Negro total
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    return canvas.toBuffer('image/png');
+  } catch (error) {
+    console.error('Error al generar silueta:', error);
+    return null;
+  }
+}
+
 // No olvides exportarla al final del archivo:
-module.exports = { generarCollagePokemon, generarImagenVersus };
+module.exports = { generarCollagePokemon, generarImagenVersus, generarSilueta };

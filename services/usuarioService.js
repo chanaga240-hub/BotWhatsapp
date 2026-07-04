@@ -23,7 +23,6 @@ async function registrarUsuario(whatsappId, nombre) {
   }
 }
 
-// CORREGIDO: Ahora usa 'db' en lugar de 'connection' y exporta la función
 async function reclamarDaily(usuarioId) {
   try {
     const [rows] = await db.execute('SELECT ultima_reclamacion FROM usuarios WHERE id = ?', [usuarioId]);
@@ -60,28 +59,39 @@ async function sumarExperiencia(usuarioId, puntos) {
   }
 }
 
+// NUEVA FUNCIÓN: Sumar Monedas
+async function sumarMonedas(usuarioId, cantidad) {
+  try {
+    await db.execute(
+      'UPDATE usuarios SET monedas = monedas + ? WHERE id = ?',
+      [cantidad, usuarioId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error al sumar monedas:', error);
+    return false;
+  }
+}
+
 async function realizarTrabajo(usuarioId) {
   try {
-    // 1. Verificamos el cooldown (10 minutos)
     const [userRows] = await db.execute('SELECT fecha_trabajo FROM usuarios WHERE id = ?', [usuarioId]);
     if (userRows.length === 0) return { error: 'user_not_found' };
 
     const usuario = userRows[0];
     const ahora = new Date();
     const ultima = usuario.fecha_trabajo ? new Date(usuario.fecha_trabajo) : null;
-    const cooldownMs = 10 * 60 * 1000; // 10 minutos en milisegundos
+    const cooldownMs = 10 * 60 * 1000; 
 
     if (ultima && (ahora - ultima) < cooldownMs) {
       const restanteMs = cooldownMs - (ahora - ultima);
       return { error: 'cooldown', remaining: restanteMs };
     }
 
-    // 2. Buscamos un trabajo aleatorio de la tabla
     const [trabajos] = await db.execute('SELECT * FROM trabajos ORDER BY RAND() LIMIT 1');
     if (trabajos.length === 0) return { error: 'no_jobs' };
     const trabajo = trabajos[0];
 
-    // 3. Pagamos al usuario y actualizamos la fecha del trabajo
     await db.execute(
       'UPDATE usuarios SET monedas = monedas + ?, fecha_trabajo = ? WHERE id = ?',
       [trabajo.ganancia, ahora, usuarioId]
@@ -96,11 +106,9 @@ async function realizarTrabajo(usuarioId) {
 
 async function comprarObjeto(usuarioId, codigo, cantidad) {
   try {
-    // 1. Obtener usuario y saldo actual
     const [rows] = await db.execute('SELECT monedas, pokeballs FROM usuarios WHERE id = ?', [usuarioId]);
     const usuario = rows[0];
 
-    // 2. Definir lógica según código (puedes ampliar esto con más códigos después)
     let precioUnitario = 0;
     if (codigo === '001') {
       precioUnitario = 50;
@@ -110,12 +118,10 @@ async function comprarObjeto(usuarioId, codigo, cantidad) {
 
     const costoTotal = precioUnitario * parseInt(cantidad);
 
-    // 3. Validar si alcanza
     if (usuario.monedas < costoTotal) {
       return { error: 'fondos_insuficientes', saldo: usuario.monedas, costo: costoTotal };
     }
 
-    // 4. Realizar la compra en BD
     if (codigo === '001') {
       await db.execute(
         'UPDATE usuarios SET monedas = monedas - ?, pokeballs = pokeballs + ? WHERE id = ?',
@@ -132,14 +138,12 @@ async function comprarObjeto(usuarioId, codigo, cantidad) {
 
 async function transferirMonedas(remitenteId, destinatarioId, cantidad) {
   try {
-    // Iniciamos transacción (esto es conceptual, ajusta según tu pool de BD)
     const [remitente] = await db.execute('SELECT id, monedas FROM usuarios WHERE whatsapp_id = ?', [remitenteId]);
     const [destinatario] = await db.execute('SELECT id FROM usuarios WHERE whatsapp_id = ?', [destinatarioId]);
 
     if (remitente.length === 0 || destinatario.length === 0) return { error: 'usuario_no_encontrado' };
     if (remitente[0].monedas < cantidad) return { error: 'fondos_insuficientes' };
 
-    // Restamos al remitente y sumamos al destinatario
     await db.execute('UPDATE usuarios SET monedas = monedas - ? WHERE id = ?', [cantidad, remitente[0].id]);
     await db.execute('UPDATE usuarios SET monedas = monedas + ? WHERE id = ?', [cantidad, destinatario[0].id]);
 
@@ -162,7 +166,6 @@ async function obtenerInventarioCompleto(whatsappId) {
     
     if (rows.length === 0) return null;
     
-    // Si el usuario no tiene fila en inventario, devolvemos 0 pociones
     return {
       pokeballs: rows[0].pokeballs || 0,
       pocion_xp_small: rows[0].pocion_xp_small || 0,
@@ -176,4 +179,5 @@ async function obtenerInventarioCompleto(whatsappId) {
   }
 }
 
-module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, realizarTrabajo, comprarObjeto, transferirMonedas, obtenerInventarioCompleto };
+// Asegúrate de exportar sumarMonedas aquí abajo
+module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, sumarMonedas, realizarTrabajo, comprarObjeto, transferirMonedas, obtenerInventarioCompleto };

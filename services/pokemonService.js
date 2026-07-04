@@ -1,17 +1,16 @@
 const db = require('./database');
+const { obtenerPokemonBebeAleatorio } = require('./pokeapi');
 
 /**
  * Registra la captura exitosa de un Pokémon, resta una pokébola y actualiza la fecha de captura.
  */
-async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, experiencia = 0) {
+async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, experiencia = 0, esIncubadora = false) {
   const connection = await db.getConnection();
   try {
     // Iniciamos una transacción para que si algo falla, no se hagan cambios parciales
     await connection.beginTransaction();
 
     // 1. Guardar el Pokémon en el inventario
-    // Insertando nivel y experiencia si se proporcionan (mantener compatibilidad con llamadas antiguas)
-    // Aseguramos que los valores por defecto sean nivel=1 y experiencia=0 cuando no se envían
     const nivelFinal = (nivel === undefined || nivel === null) ? 1 : nivel;
     const experienciaFinal = (experiencia === undefined || experiencia === null) ? 0 : experiencia;
 
@@ -20,11 +19,20 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
       [usuarioId, pokemonId, nombrePokemon, nivelFinal, experienciaFinal]
     );
 
-    // 2. Restar una pokébola y actualizar la fecha de "ultima_captura"
-    await connection.execute(
-      'UPDATE usuarios SET pokeballs = pokeballs - 1, ultima_captura = NOW() WHERE id = ?',
-      [usuarioId]
-    );
+    // 2. Condición: Restar una pokébola SOLO si no viene de la incubadora
+    if (esIncubadora) {
+        // Si viene de incubadora, solo actualizamos la fecha de última captura
+        await connection.execute(
+            'UPDATE usuarios SET ultima_captura = NOW() WHERE id = ?',
+            [usuarioId]
+        );
+    } else {
+        // Captura salvaje normal: Restamos pokébola y actualizamos fecha
+        await connection.execute(
+            'UPDATE usuarios SET pokeballs = pokeballs - 1, ultima_captura = NOW() WHERE id = ?',
+            [usuarioId]
+        );
+    }
 
     await connection.commit();
     return true;
@@ -723,15 +731,16 @@ async function usarHuevoIncubadora(whatsappId) {
       return { error: 'sin_objetos' };
     }
 
-    // 3. Verificar si YA tiene un huevo en la incubadora
+    // 3. Verificar si YA alcanzó el límite de 3 huevos en la incubadora
     const [incubando] = await connection.execute(
       'SELECT id FROM incubadora WHERE usuario_id = ?',
       [usuarioId]
     );
     
-    if (incubando.length > 0) {
+    // AQUÍ ESTÁ EL CAMBIO: Ahora permite hasta 3 huevos
+    if (incubando.length >= 3) {
       await connection.rollback();
-      return { error: 'ya_incubando' };
+      return { error: 'limite_alcanzado' }; // Retornamos el error que espera use.js
     }
 
     // 4. Descontar el huevo del inventario
@@ -741,7 +750,6 @@ async function usarHuevoIncubadora(whatsappId) {
     );
 
     // 5. Insertar en la tabla incubadora
-    // fecha_inicio se pondrá sola por el DEFAULT CURRENT_TIMESTAMP que configuraste
     await connection.execute(
       'INSERT INTO incubadora (usuario_id) VALUES (?)',
       [usuarioId]
@@ -786,6 +794,7 @@ async function revisarIncubadora(whatsappId) {
     let huevosEclosionados = [];
     let huevosEnEspera = [];
 
+    
     // Evaluar cada huevo individualmente
     for (const huevo of incubando) {
       const inicio = new Date(huevo.fecha_inicio);
@@ -793,12 +802,12 @@ async function revisarIncubadora(whatsappId) {
 
       if (tiempoPasadoMs >= tiempoRequeridoMs) {
         // Ya pasaron 24h: Eclosionar
-        await connection.execute('DELETE FROM incubadora WHERE id = ?', [huevo.id]);
+        await connection.execute('DELETE FROM incubadora WHERE id = ?', [huevo.id]); //[cite: 17]
         
-        const bebesIds = [172, 173, 174, 175, 236, 238, 239, 240, 298, 360, 406, 433, 438, 439, 440, 446, 447, 458, 848];
-        const randomPokemonId = bebesIds[Math.floor(Math.random() * bebesIds.length)];
+        // 🔄 Buscamos dinámicamente en la PokeAPI hasta encontrar un bebé
+        const idDinamico = await obtenerPokemonBebeAleatorio();
         
-        huevosEclosionados.push(randomPokemonId);
+        huevosEclosionados.push(idDinamico); //[cite: 17]
       } else {
         // Aún le falta tiempo
         const restanteMs = tiempoRequeridoMs - tiempoPasadoMs;
