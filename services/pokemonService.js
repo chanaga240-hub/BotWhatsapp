@@ -144,36 +144,52 @@ async function verificarYObtenerPokemon(whatsappId, nombreOId) {
   try {
       const input = nombreOId.trim();
 
-      // 1. Intentar buscar por coincidencia EXACTA (ignorando mayúsculas)
+      // 1. Extraer nombre base y el índice si el usuario escribe ej: Pikachu_2
+      let nombreBase = input;
+      let offset = 0;
+      const match = input.match(/^(.+)_(\d+)$/);
+      
+      if (match) {
+          nombreBase = match[1].trim();
+          const indice = parseInt(match[2], 10);
+          offset = indice > 0 ? indice - 1 : 0;
+      }
+
+      // 2. Construir la cláusula LIMIT dinámicamente
+      // Si no hay sufijo (_2), queda idéntico a tu código original
+      const limitClause = offset > 0 ? `LIMIT 1 OFFSET ${offset}` : `LIMIT 1`;
+
+      // 3. Intentar buscar por coincidencia EXACTA (ignorando mayúsculas)
       let [rows] = await db.execute(
           `SELECT pa.* FROM pokemon_atrapados pa
           JOIN usuarios u ON pa.usuario_id = u.id
           WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) = LOWER(?)
-          LIMIT 1`,
-          [whatsappId, input]
+          ORDER BY pa.id ASC
+          ${limitClause}`,
+          [whatsappId, nombreBase]
       );
 
-      // 2. Si no se encontró y el input es un número, intentar buscar por ID (pokemon_id)
-      if (rows.length === 0 && !isNaN(input)) {
+      // 4. Si no se encontró y el input es un número, intentar buscar por ID
+      if (rows.length === 0 && !isNaN(nombreBase)) {
           [rows] = await db.execute(
               `SELECT pa.* FROM pokemon_atrapados pa
               JOIN usuarios u ON pa.usuario_id = u.id
               WHERE u.whatsapp_id = ? AND pa.pokemon_id = ?
-              LIMIT 1`,
-              [whatsappId, input]
+              ORDER BY pa.id ASC
+              ${limitClause}`,
+              [whatsappId, nombreBase]
           );
       }
 
-      // 3. Búsqueda FLEXIBLE (coincidencia parcial con LIKE)
-      // Esto atrapará casos donde el usuario escriba una parte del nombre o el Pokémon tenga sufijos (ej: "kyurem" atrapa "kyurem-black")
+      // 5. Búsqueda FLEXIBLE (coincidencia parcial con LIKE)
       if (rows.length === 0) {
-          const inputFlexible = `%${input}%`;
-          
+          const inputFlexible = `%${nombreBase}%`;
           [rows] = await db.execute(
               `SELECT pa.* FROM pokemon_atrapados pa
               JOIN usuarios u ON pa.usuario_id = u.id
               WHERE u.whatsapp_id = ? AND LOWER(pa.nombre) LIKE LOWER(?)
-              LIMIT 1`,
+              ORDER BY pa.id ASC
+              ${limitClause}`,
               [whatsappId, inputFlexible]
           );
       }

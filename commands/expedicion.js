@@ -27,8 +27,9 @@ async function handleExpedicion(msg, texto) {
                 // Ya terminó la expedición, la reclamamos
                 const resultado = await pokemonService.reclamarExpedicion(exp);
                 if (resultado.success) {
+                    const xpGanada = 50 * exp.duracion_dias; // Calculamos la XP real para el mensaje
                     mensaje += `✅ *${exp.nombre}* ha regresado victorioso.\n`;
-                    mensaje += `💰 Encontró *${resultado.monedas} monedas* y ganó *50 XP*.\n`;
+                    mensaje += `💰 Encontró *${resultado.monedas} monedas* y ganó *${xpGanada} XP*.\n`;
                     if (resultado.subioNivel) {
                         mensaje += `🌟 ¡*${exp.nombre}* ha subido al Nivel ${resultado.nuevoNivel}!\n`;
                     }

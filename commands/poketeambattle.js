@@ -376,7 +376,18 @@ async function handlePoketeamBattle(msg, texto) {
         if (!isNaN(jerarquia)) {
             nuevoPoke = jugador.team.find(p => p.jerarquia === jerarquia);
         } else {
-            nuevoPoke = jugador.team.find(p => p.nombre.toLowerCase() === parametroCambio);
+            let nombreBase = parametroCambio;
+            let indice = 1;
+            const match = parametroCambio.match(/^(.+)_(\d+)$/);
+            
+            if (match) {
+                nombreBase = match[1].trim();
+                indice = parseInt(match[2], 10);
+            }
+
+            const coincidencias = jugador.team.filter(p => p.nombre.toLowerCase() === nombreBase);
+            
+            nuevoPoke = coincidencias[indice - 1]; 
         }
 
         if (!nuevoPoke) return await msg.reply(`❌ No se encontró ningún Pokémon con esa posición o nombre en tu equipo.`);
