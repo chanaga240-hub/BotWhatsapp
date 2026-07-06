@@ -95,11 +95,21 @@ async function handleTrivia(msg, client) {
 
         const urlImagen = getImagen(pokeCorrectoDatos);
         const siluetaBuffer = await generarSilueta(urlImagen);
+
+        // --- NUEVA VALIDACIÓN AÑADIDA ---
+        // Si falló la descarga o generación de la imagen, reintentamos la ronda.
+        if (!siluetaBuffer) {
+            console.log(`⚠️ Falló la generación de imagen para ${pokeCorrectoDatos.name}. Reintentando ronda ${ronda}...`);
+            ronda--; // Restamos 1 para que el bucle vuelva a intentar esta misma ronda
+            continue; // Saltamos todo lo de abajo y volvemos al inicio del for
+        }
+        // -------------------------------
+
         const media = new MessageMedia('image/png', siluetaBuffer.toString('base64'), 'silueta.png');
 
         const pollPregunta = new Poll(`Ronda ${ronda}/5: ¿Quién es este Pokémon?`, nombresOpciones);
 
-        const mensajesRonda = new Map(); 
+        const mensajesRonda = new Map();
         for (const p of participantes) {
             // Reiniciamos el estado de respuesta para esta nueva ronda
             puntajes[p].respondido = false; 
