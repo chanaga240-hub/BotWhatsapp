@@ -46,14 +46,7 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
     );
 
     // 2. Condición: Restar una pokébola SOLO si no viene de la incubadora
-    if (esIncubadora) {
-        // Si viene de incubadora, solo actualizamos la fecha de última captura
-        await connection.execute(
-            'UPDATE usuarios SET ultima_captura = NOW() WHERE id = ?',
-            [usuarioId]
-        );
-    } else {
-        // Captura salvaje normal: Restamos pokébola y actualizamos fecha
+    if (!esIncubadora) {
         await connection.execute(
             'UPDATE usuarios SET pokeballs = pokeballs - 1, ultima_captura = NOW() WHERE id = ?',
             [usuarioId]
