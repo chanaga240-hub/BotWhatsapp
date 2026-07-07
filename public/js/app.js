@@ -320,15 +320,21 @@ window.viewPokedex = async function(usuarioId, nombre) {
       </div>
       <div class="pokedex-grid">
         ${pokemonList
+          .slice()
+          .sort((a, b) => {
+            if (a.estaEnEquipo === b.estaEnEquipo) return 0;
+            return a.estaEnEquipo ? -1 : 1;
+          })
           .map((poke) => `
-            <article class="pokedex-card">
+            <article class="pokedex-card ${poke.estaEnEquipo ? 'pokedex-card-team' : ''}">
               <div class="pokedex-card-img">
-                <img src="${poke.imagen || 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'}" alt="${escapeHtml(poke.nombre)}" loading="lazy">
+                <img src="${poke.imagen || 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'}" alt="${escapeHtml(poke.nombre)}" loading="lazy" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'">
               </div>
               <div class="pokedex-card-body">
                 <div class="pokedex-card-header">
                   <strong>${escapeHtml(poke.nombre)} - ${poke.pokemon_id}</strong>
                   <div class="pokedex-card-meta">
+                    ${poke.estaEnEquipo ? `<span class="badge badge-success">Equipo #${poke.jerarquia || '-'}</span>` : ''}
                     <span>Nivel ${poke.nivel || 1}</span>
                     <span>${poke.experiencia != null ? `${poke.experiencia} EXP` : '—'}</span>
                   </div>

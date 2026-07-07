@@ -9,7 +9,7 @@ const {
   randomPokemonId,
   getAudioGrito,
 } = require('../services/pokeapi');
-const { replyText, replyWithSticker, replyWithAudio } = require('../services/reply');
+const { replyText, replyWithSticker } = require('../services/reply');
 
 async function handlePokemon(msg, busqueda = null) {
   try {
@@ -61,7 +61,6 @@ async function handlePokemon(msg, busqueda = null) {
     if (probEsquive > 30) probEsquive = 30;
 
     const urlImagen = getImagen(data);
-    const urlAudio = getAudioGrito(data); 
 
     const mensaje =
       `✨ *¡POKÉMON AVISTADO!* ✨\r\n` +
@@ -79,17 +78,6 @@ async function handlePokemon(msg, busqueda = null) {
 
     await replyWithSticker(msg, mensaje, urlImagen, nombre);
     console.log(`[Bot] Datos y sticker de ${nombre} enviados correctamente.`);
-
-    if (urlAudio) {
-      try {
-        await replyWithAudio(msg, urlAudio); 
-        console.log(`[Bot] Grito de ${nombre} enviado con éxito.`);
-      } catch (audioError) {
-        console.error(`[Bot] No se pudo enviar el audio:`, audioError.message);
-      }
-    } else {
-      console.log(`[Bot] ${nombre} no tiene un audio disponible en la API.`);
-    }
 
   } catch (error) {
     console.error('Error general en #pokemon:', error);

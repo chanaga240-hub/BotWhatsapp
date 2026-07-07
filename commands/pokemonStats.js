@@ -1,6 +1,7 @@
 const pokemonService = require('../services/pokemonService');
 const { consultarPokemon, getStat, getImagen, getTiposEspanol } = require('../services/pokeapi');
 const { MessageMedia } = require('whatsapp-web.js');
+const { getMediaFromUrlWithCache } = require('../services/reply');
 
 async function handlePokemonStats(msg) {
   try {
@@ -24,7 +25,11 @@ async function handlePokemonStats(msg) {
       return await msg.reply('⚠️ Error al conectar con la PokéAPI para traer las estadísticas base.');
     }
 
-    const pokedexId = dataApi.id;
+    if (!dataApi || typeof dataApi !== 'object') {
+      return await msg.reply('⚠️ No se pudo obtener la información del Pokémon desde la PokéAPI.');
+    }
+
+    const pokedexId = dataApi.id || pokeDB.pokemon_id;
     
     // 1. Obtenemos las estadísticas base puras
     const stats = {
@@ -96,14 +101,18 @@ async function handlePokemonStats(msg) {
 
     const urlImagen = getImagen(dataApi);
     if (urlImagen) {
-      const media = await MessageMedia.fromUrl(urlImagen, { unsafeMime: true });
-      if (media) {
-        const chat = await msg.getChat();
-        await chat.sendMessage(media, {
-          sendMediaAsSticker: true,
-          stickerName: pokeDB.nombre,
-          stickerAuthor: `Stats de Entrenador`
-        });
+      try {
+        const media = await getMediaFromUrlWithCache(urlImagen, `${pokeDB.nombre}.png`);
+        if (media) {
+          const chat = await msg.getChat();
+          await chat.sendMessage(media, {
+            sendMediaAsSticker: true,
+            stickerName: pokeDB.nombre,
+            stickerAuthor: `Stats de Entrenador`
+          });
+        }
+      } catch (imageError) {
+        console.warn('No se pudo enviar la imagen de stats:', imageError.message);
       }
     }
 

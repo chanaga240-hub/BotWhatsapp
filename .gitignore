@@ -2,3 +2,7 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_cache/
 .env
+assets/pokemon/*.png
+assets/pokemon/*.jpg
+assets/pokemon/*.jpeg
+assets/pokemon/*.webp

@@ -1,9 +1,58 @@
 const db = require('./database');
 const POKEAPI_BASE = 'https://pokeapi.co/api/v2/pokemon';
 
-
 const speciesCache = new Map();
 const abilityCache = new Map();
+const pokemonCacheByKey = new Map();
+const pokemonCacheById = new Map();
+
+async function getCachedData(queryKey) {
+  if (pokemonCacheByKey.has(queryKey)) {
+    return pokemonCacheByKey.get(queryKey);
+  }
+
+  const numericId = /^\d+$/.test(queryKey) ? Number(queryKey) : null;
+
+  try {
+    const query = numericId !== null
+      ? 'SELECT data FROM pokemon_cache WHERE query_key = ? OR pokemon_id = ? LIMIT 1'
+      : 'SELECT data FROM pokemon_cache WHERE query_key = ? LIMIT 1';
+    const params = numericId !== null ? [queryKey, numericId] : [queryKey];
+
+    const [rows] = await db.execute(query, params);
+
+    if (rows.length) {
+      const data = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
+      pokemonCacheByKey.set(queryKey, data);
+      if (data?.id) {
+        pokemonCacheById.set(String(data.id), data);
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn('Error consultando caché en DB:', err.message);
+  }
+
+  return null;
+}
+
+async function cacheJsonResponse(data, queryKey, fallbackName = null, fallbackId = null) {
+  if (!data || !queryKey) return;
+
+  pokemonCacheByKey.set(queryKey, data);
+  if (fallbackId || data?.id) {
+    pokemonCacheById.set(String(fallbackId || data.id), data);
+  }
+
+  try {
+    await db.execute(
+      'INSERT INTO pokemon_cache (pokemon_id, query_key, name, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = CURRENT_TIMESTAMP',
+      [fallbackId || data?.id || null, queryKey, fallbackName || data?.name || null, JSON.stringify(data)]
+    );
+  } catch (err) {
+    console.warn('Error guardando caché en DB:', err.message);
+  }
+}
 
 const TIPOS_ES = {
   normal: 'Normal',
@@ -59,24 +108,140 @@ function normalizeForApi(param) {
   return s;
 }
 
-async function consultarPokemon(param) {
-  const ident = normalizeForApi(param);
-  const url = `${POKEAPI_BASE}/${ident}`;
-  const response = await fetch(url);
+function hasPokemonShape(data) {
+  return !!data && typeof data === 'object' && (typeof data.id !== 'undefined' || typeof data.name !== 'undefined');
+}
 
-  if (!response.ok) {
-    throw new Error('No se encontró el Pokémon');
+async function consultarPokemon(param) {
+  return fetchPokemon(param);
+}
+
+async function fetchPokemon(param) {
+  const rawValue = String(param ?? '').trim();
+  if (!rawValue) {
+    throw new Error('Parámetro de Pokémon inválido');
   }
 
-  return response.json();
+  const queryKey = normalizeForApi(rawValue);
+  if (!queryKey) {
+    throw new Error('Parámetro de Pokémon inválido');
+  }
+
+  const cached = await getCachedData(queryKey);
+  if (cached && hasPokemonShape(cached)) {
+    if (Array.isArray(cached.stats) && cached.sprites) {
+      return cached;
+    }
+
+    if (Array.isArray(cached.stats)) {
+      return cached;
+    }
+
+    if (cached.sprites) {
+      return cached;
+    }
+  }
+
+  const url = `${POKEAPI_BASE}/${queryKey}`;
+
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    throw new Error(`Error de red al consultar la API de Pokémon: ${err.message}`);
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      const fallback = await tryResolvePokemonName(rawValue);
+      if (fallback) {
+        return fallback;
+      }
+      throw new Error('No se encontró el Pokémon');
+    }
+    if (response.status === 429) {
+      throw new Error('Límite de solicitudes alcanzado en la API de Pokémon');
+    }
+    throw new Error(`Error al consultar la API de Pokémon: ${response.status}`);
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new Error(`Error decodificando la respuesta de la API de Pokémon: ${err.message}`);
+  }
+
+  await cacheJsonResponse(data, queryKey, data.name, data.id);
+  return data;
+}
+
+async function tryResolvePokemonName(input) {
+  const normalized = normalizeForApi(input);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const cached = await getCachedData(normalized);
+    if (cached) {
+      return cached;
+    }
+
+    const url = `https://pokeapi.co/api/v2/pokemon-species/${normalized}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+
+    const speciesData = await response.json();
+    const pokemonName = speciesData?.name;
+    if (!pokemonName) {
+      return null;
+    }
+
+    const pokemonUrl = `${POKEAPI_BASE}/${pokemonName}`;
+    const pokemonResponse = await fetch(pokemonUrl);
+    if (!pokemonResponse.ok) {
+      return null;
+    }
+
+    const pokemonData = await pokemonResponse.json();
+    await cacheJsonResponse(pokemonData, normalizeForApi(pokemonData.name), pokemonData.name, pokemonData.id);
+    return pokemonData;
+  } catch (err) {
+    console.warn('No se pudo resolver el nombre alternativo:', err.message);
+    return null;
+  }
 }
 
 async function fetchJson(url) {
-  const response = await fetch(url);
+  const cacheKey = String(url);
+  const cached = await getCachedData(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    throw new Error(`Error de red al consultar ${url}: ${err.message}`);
+  }
+
   if (!response.ok) {
     throw new Error(`Error al consultar ${url}`);
   }
-  return response.json();
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new Error(`Error decodificando la respuesta de ${url}: ${err.message}`);
+  }
+
+  await cacheJsonResponse(data, cacheKey);
+  return data;
 }
 
 async function getNombreEspanol(pokemon) {
@@ -119,24 +284,31 @@ async function getHabilidadEspanol(abilityEntry) {
 }
 
 async function getHabilidadesEspanol(pokemon) {
-  const nombres = await Promise.all(pokemon.abilities.map(getHabilidadEspanol));
+  const abilities = Array.isArray(pokemon?.abilities) ? pokemon.abilities : [];
+  const nombres = await Promise.all(abilities.map(getHabilidadEspanol));
   return nombres.join(', ');
 }
 
 function getTiposEspanol(pokemon) {
-  return pokemon.types
-    .map((entry) => TIPOS_ES[entry.type.name] || formatName(entry.type.name))
+  const types = Array.isArray(pokemon?.types) ? pokemon.types : [];
+  return types
+    .map((entry) => TIPOS_ES[entry?.type?.name] || formatName(entry?.type?.name))
     .join(' / ');
 }
 
 function getStat(pokemon, statName) {
-  return pokemon.stats.find((s) => s.stat.name === statName)?.base_stat ?? 50;
+  const stats = Array.isArray(pokemon?.stats) ? pokemon.stats : [];
+  return stats.find((s) => s?.stat?.name === statName)?.base_stat ?? 50;
 }
 
 function getImagen(pokemon) {
+  const sprites = pokemon?.sprites || {};
   return (
-    pokemon.sprites.other?.['official-artwork']?.front_default ||
-    pokemon.sprites.front_default
+    sprites.other?.['official-artwork']?.front_default ||
+    sprites.other?.home?.front_default ||
+    sprites.other?.dream_world?.front_default ||
+    sprites.front_default ||
+    null
   );
 }
 
@@ -322,5 +494,6 @@ module.exports = {
   obtenerMultiplicadorLocal,
   getEvolucionesInmediatas,
   getVariantesPokemon,
-  obtenerPokemonBebeAleatorio
+  obtenerPokemonBebeAleatorio,
+  fetchPokemon
 };

@@ -1,7 +1,7 @@
 const { consultarPokemon, getStat, getImagen, obtenerMultiplicadorLocal, randomPokemonId } = require('../services/pokeapi');
 const pokemonService = require('../services/pokemonService');
 const db = require('../services/database');
-const { replyWithLabeledStickers } = require('../services/reply');
+const { replyWithLabeledStickers, getMediaFromUrlWithCache } = require('../services/reply');
 const { MessageMedia } = require('whatsapp-web.js'); 
 
 // Mapa en memoria exclusivo para los duelos PvE
@@ -34,7 +34,7 @@ async function handlePokechallenge(msg, texto) {
         `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
 
       try {
-        const media = await MessageMedia.fromUrl(imgRivalDesafio);
+        const media = await getMediaFromUrlWithCache(imgRivalDesafio, `${desafioExistente.pokemonNombre || 'pokemon'}.png`);
         return await msg.reply(media, undefined, { caption: textoDesafioPendiente });
       } catch (error) {
         console.error('Error al enviar la foto del desafío pendiente:', error);
@@ -97,7 +97,7 @@ async function handlePokechallenge(msg, texto) {
       `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
 
     try {
-      const media = await MessageMedia.fromUrl(imgRivalDesafio);
+      const media = await getMediaFromUrlWithCache(imgRivalDesafio, `${pokeDataNPC.name || 'pokemon'}.png`);
       return await msg.reply(media, undefined, { caption: textoDesafio });
     } catch (error) {
       console.error('Error al enviar la foto del desafío:', error);

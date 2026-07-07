@@ -1,6 +1,7 @@
 const { MessageMedia } = require('whatsapp-web.js'); 
 const pokemonService = require('../services/pokemonService');
 const { consultarPokemon, formatName } = require('../services/pokeapi');
+const { getMediaFromUrlWithCache } = require('../services/reply');
 
 async function handleIncubadora(msg) {
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
@@ -18,23 +19,32 @@ async function handleIncubadora(msg) {
   if (resultado.nacimientos && resultado.nacimientos.length > 0) {
     await msg.reply(`🎉 *¡Tus huevos están eclosionando!* 🥚✨`);
     
-    for (const idApi of resultado.nacimientos) {
+    for (const nacimiento of resultado.nacimientos) {
       try {
-        const data = await consultarPokemon(idApi);
+        const data = await consultarPokemon(nacimiento.pokemonId);
         const nombrePokemon = formatName ? formatName(data.name) : data.name;
         
-        // MODIFICACIÓN AQUÍ: Añadimos 'true' como sexto parámetro (esIncubadora)
-        await pokemonService.registrarCaptura(resultado.usuarioId, data.id, nombrePokemon, 1, 0, true);
+        const resultadoCaptura = await pokemonService.registrarCaptura(resultado.usuarioId, data.id, nombrePokemon, 1, 0, true);
+        if (resultadoCaptura?.success) {
+          await pokemonService.eliminarHuevoIncubadora(nacimiento.incubadoraId);
+        } else if (resultadoCaptura?.duplicate) {
+          await chat.sendMessage(`⚠️ El Pokémon *${nombrePokemon}* ya estaba en tu inventario, así que el huevo no se completó y quedó pendiente.`);
+          continue;
+        }
         
         const textoNacimiento = `🎊 Ha nacido un *${nombrePokemon}* (Nivel 1).\n¡Se ha añadido a tu inventario!`;
         const hdUrl = data.sprites?.other?.['official-artwork']?.front_default || data.sprites?.front_default;
         
         if (hdUrl) {
-          const media = await MessageMedia.fromUrl(hdUrl, { unsafeMime: true });
+          const media = await getMediaFromUrlWithCache(hdUrl, `${nombrePokemon}.png`);
           
-          await chat.sendMessage(media, { 
-            caption: textoNacimiento 
-          });
+          if (media) {
+            await chat.sendMessage(media, { 
+              caption: textoNacimiento 
+            });
+          } else {
+            await chat.sendMessage(textoNacimiento);
+          }
         } else {
           await chat.sendMessage(textoNacimiento);
         }

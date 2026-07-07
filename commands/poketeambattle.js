@@ -146,7 +146,12 @@ async function ejecutarMatchup(battleId, msgContext) {
         cronica += '\n';
     }
 
-    // RESOLUCIÓN DEL MATCHUP
+    if (p1Active.hp > 0 && p2Active.hp > 0 && rondas >= 50) {
+        cronica += `\n⚠️ ¡Ambos Pokémon han llegado a su límite de resistencia tras ${rondas} rondas y caen exhaustos por fatiga! ⚠️\n`;
+        p1Active.hp = 0;
+        p2Active.hp = 0;
+    }
+
     let p1Caido = p1Active.hp <= 0;
     let p2Caido = p2Active.hp <= 0;
 
@@ -165,7 +170,6 @@ async function ejecutarMatchup(battleId, msgContext) {
     const vivosP2 = battle.p2.team.filter(p => p.hp > 0).length;
 
     if (vivosP1 === 0 || vivosP2 === 0) {
-        // ... (Tu código existente para el fin del combate se mantiene igual)
         cronica += `\n🏆 *¡FIN DEL COMBATE DE EQUIPOS!* 🏆\n`;
         let idGanador = null;
         let nombreGanador = '';
@@ -194,21 +198,18 @@ async function ejecutarMatchup(battleId, msgContext) {
 
         activeTeamBattles.delete(battleId);
         
-        // --- NUEVO CÓDIGO DE IMAGEN VS ---
         const bufferVersus = await generarImagenVersus(
             { nombre: p1Active.nombre, url: p1Active.urlImagen },
             { nombre: p2Active.nombre, url: p2Active.urlImagen }
         );
         const media = new MessageMedia('image/png', bufferVersus.toString('base64'), 'batalla_vs.png');
 
-        // Validación anti-crasheo por límite de 1024 caracteres en WhatsApp
         if (cronica.length > 1024) {
             await msgContext.reply(cronica);
             await msgContext.reply(media);
         } else {
             await msgContext.reply(media, undefined, { caption: cronica });
         }
-        // ---------------------------------
 
     } else {
         if (p1Caido) battle.p1.necesitaCambio = true;
@@ -221,13 +222,10 @@ async function ejecutarMatchup(battleId, msgContext) {
             cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
         } else if (p2Caido) {
             cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
-        }else if (p1Active.hp > 0 && p2Active.hp > 0) {
-            cronica += `\n⚠️ ¡Ambos Pokémon han llegado a su límite de resistencia tras ${rondas} rondas y caen exhaustos por fatiga! ⚠️\n`;
-            p1Active.hp = 0;
-            p2Active.hp = 0;
         }
+        
+        // 2. Se elimina la lógica de fatiga que estaba oculta aquí abajo
 
-        // --- NUEVO CÓDIGO DE IMAGEN VS ---
         const bufferVersusContinuar = await generarImagenVersus(
             { nombre: p1Active.nombre, url: p1Active.urlImagen },
             { nombre: p2Active.nombre, url: p2Active.urlImagen }
@@ -240,7 +238,6 @@ async function ejecutarMatchup(battleId, msgContext) {
         } else {
             await msgContext.reply(mediaContinuar, undefined, { caption: cronica });
         }
-        // ---------------------------------
     }
 }
 

@@ -9,6 +9,7 @@ const pokemonService = require('./pokemonService');
 const configuracionService = require('./configuracionService'); 
 const { generarTarjetaPokemon } = require('../services/canvasService');
 const { consultarPokemon, getImagen, getStat } = require('./pokeapi');
+const { getMediaFromUrlWithCache } = require('./reply');
 
 global.pokemonSalvajeActivo = null;
 const ADMIN_NUMBER = '64514737336383:66';
@@ -50,10 +51,15 @@ class BotManager extends EventEmitter {
         if (urlImagen) {
           const media = await MessageMedia.fromUrl(urlImagen, { unsafeMime: true });
           if (media) {
-            await this.client.sendMessage(groupId, media, { 
-              sendMediaAsSticker: true, 
-              stickerName: nombre.substring(0, 30) 
-            });
+            try {
+              await this.client.sendMessage(groupId, media, { 
+                sendMediaAsSticker: true, 
+                stickerName: nombre.substring(0, 30) 
+              });
+            } catch (stickerErr) {
+              this.log(`[Sticker Automático] Error de conversión para ${nombre}, enviando imagen normal: ${stickerErr.message}`, 'warn');
+              await this.client.sendMessage(groupId, media);
+            }
           }
         }
         
@@ -251,7 +257,6 @@ class BotManager extends EventEmitter {
         // ==========================================
         if (textoMinuscula === '#trivia') {
           const { handleTrivia } = require('../commands/trivia');
-          // Pasamos this.client para poder enviar mensajes al privado
           return await handleTrivia(msg, this.client);
         }
 
@@ -275,7 +280,6 @@ class BotManager extends EventEmitter {
         // COMANDO: #pokevariantes
         // ==========================================
         if (textoMinuscula.startsWith('#pokevariantes')) {
-          // CORRECCIÓN: Importar y usar handlePokeVariantes
           const { handlePokeVariantes } = require('../commands/pokevariantes'); 
           return await handlePokeVariantes(msg, textoMinuscula);
         }
@@ -340,7 +344,6 @@ class BotManager extends EventEmitter {
         // COMANDO: #pokesalvaje (PÚBLICO CON CONTROL DE TIEMPO POR BD)
         // ==========================================
         if (textoMinuscula.startsWith('#pokesalvaje')) {
-          // 1. Validar el tiempo transcurrido desde la base de datos
           const config = await configuracionService.obtenerConfiguracion('Envio_Pokemon_Salvaje');
           
           if (config) {
@@ -364,17 +367,14 @@ class BotManager extends EventEmitter {
             }
           }
 
-          // 2. Si pasó la validación, actualizamos inmediatamente el registro en la BD a NOW()
           await configuracionService.actualizarUltimoEnvio('Envio_Pokemon_Salvaje');
 
-          // 3. Ejecutamos la lógica de generación del Pokémon salvaje
           const { consultarPokemon, getImagen, getTiposEspanol, randomPokemonId, getCaptureRate, calcularProbabilidadCaptura } = require('./pokeapi');
 
           try {
             const randomId = randomPokemonId();
             const data = await consultarPokemon(randomId);
 
-            // SUSTITUIMOS LA PROMESA DE TRADUCCIÓN POR EL NOMBRE DIRECTO DE LA API
             const nombre = data.name; 
             const tipos = getTiposEspanol(data);
             
@@ -385,9 +385,10 @@ class BotManager extends EventEmitter {
               hp: '❤️ Vida', attack: '⚔️ Ataque', defense: '🛡️ Defensa', speed: '⚡ Velocidad',
             };
 
-            const estadisticas = data.stats
-              .filter((s) => statsMap[s.stat.name])
-              .map((s) => `${statsMap[s.stat.name]}: *${s.base_stat}*`)
+            const statsEntries = Array.isArray(data.stats) ? data.stats : [];
+            const estadisticas = statsEntries
+              .filter((s) => s && s.stat && statsMap[s.stat.name])
+              .map((s) => `${statsMap[s.stat.name]}: *${s.base_stat || 0}*`)
               .join('\r\n');
 
             const urlImagen = getImagen(data);
@@ -403,13 +404,17 @@ class BotManager extends EventEmitter {
               `${estadisticas}\r\n\r\n` +
               `⏳ *El Pokémon se está materializando... ¡Preparen sus Pokéballs!*`;
 
-            // Enviar la alerta e imagen a todos los grupos permitidos
             for (const groupId of this.GRUPOS_PERMITIDOS) {
               await this.client.sendMessage(groupId, mensajeAlerta);
               if (urlImagen) {
-                const media = await MessageMedia.fromUrl(urlImagen, { unsafeMime: true });
+                const media = await getMediaFromUrlWithCache(urlImagen, `${nombre}.png`);
                 if (media) {
-                  await this.client.sendMessage(groupId, media, { sendMediaAsSticker: true, stickerName: nombre });
+                  try {
+                    await this.client.sendMessage(groupId, media, { sendMediaAsSticker: true, stickerName: nombre });
+                  } catch (stickerError) {
+                    this.log(`[Sticker] Falló conversión en #pokesalvaje para ${nombre}, enviando imagen: ${stickerError.message}`, 'warn');
+                    await this.client.sendMessage(groupId, media, { caption: `¡Aquí está el sprite de ${nombre}! ✨` });
+                  }
                 }
               }
             }
@@ -418,7 +423,6 @@ class BotManager extends EventEmitter {
               await msg.reply(`✅ ¡Éxito! Has iniciado la aparición de ${nombre}. Iniciando conteo de 15 segundos en los grupos...`);
             }
 
-            // 🕒 CONTEO DE SEGURIDAD (De 15 a 0, bajando de 3 en 3)
             for (let i = 15; i >= 0; i -= 3) {
               for (const groupId of this.GRUPOS_PERMITIDOS) {
                 if (i === 0) {
@@ -427,13 +431,11 @@ class BotManager extends EventEmitter {
                   await this.client.sendMessage(groupId, `⏳ *Materializándose en ${i} segundos...*`);
                 }
               }
-              // Espera exactamente 3 segundos antes de mandar el siguiente número
               if (i > 0) {
                 await new Promise(resolve => setTimeout(resolve, 3000));
               }
             }
 
-            // 🔑 ACTIVACIÓN GLOBAL REAL (Ocurre solo después de que el conteo llega a 0)
             global.pokemonSalvajeActivo = { id: data.id, nombre: nombre };
 
             this.log(`[Bot] El usuario ${usuario.nombre_whatsapp} invocó satisfactoriamente a ${nombre}. Evento de captura desbloqueado tras conteo de 15s.`, 'info');
@@ -465,7 +467,7 @@ class BotManager extends EventEmitter {
         // COMANDO: #pokerealease [nombre]
         // ==========================================
         if (textoMinuscula.startsWith('#pokerealease')) {
-          const { handlePokerelease } = require('../commands/pokerelease'); // Asegúrate de la ruta
+          const { handlePokerelease } = require('../commands/pokerelease'); 
           return await handlePokerelease(msg, texto, this, usuario);
         }
 
@@ -503,7 +505,7 @@ class BotManager extends EventEmitter {
         // COMANDO: #capture
         // ==========================================
         if (textoMinuscula.startsWith('#capture')) {   
-          const cooldownMs = 3 * 60 * 60 * 1000;
+          const cooldownMs = 5 * 60 * 60 * 1000;
           if (usuario.ultima_captura) {
             const ultimaCaptura = new Date(usuario.ultima_captura);
             const ahora = new Date();
@@ -551,13 +553,19 @@ class BotManager extends EventEmitter {
               const expProp = pokemonSalvajeActivo.experiencia || null;
               const guardado = await pokemonService.registrarCaptura(usuario.id, idPokemon, nombrePokemon, nivelProp, expProp);
 
-              if (guardado) {
+              if (guardado?.success) {
                 global.pokemonSalvajeActivo = null;
                 const porcentajeExito = Math.round(probabilidadExito * 100);
                 return await msg.reply(`🎉 ¡Impresionante! Has atrapado a **${nombrePokemon}** (Nº ${idPokemon}) 🌟.\n\nTenía un ratio de captura de ${porcentajeExito}%. ¡Tuviste suerte!\n\nSe ha guardado en tu inventario y gastaste 1 Pokéball (Te quedan: ${usuario.pokeballs - 1}).`);
-              } else {
-                return await msg.reply('⚠️ Error al guardar tu captura. Inténtalo de nuevo.');
               }
+
+              if (guardado?.duplicate) {
+                await pokemonService.restarPokeball(usuario.id);
+                const porcentajeExito = Math.round(probabilidadExito * 100);
+                return await msg.reply(`💨 El Pokémon **${nombrePokemon}** ya estaba siendo cuidado por otro entrenador, así que se escapó de tu alcance. (Ratio: ${porcentajeExito}%)\n\nTu Pokéball falló y se ha consumido.`);
+              }
+
+              return await msg.reply('⚠️ Error al guardar tu captura. Inténtalo de nuevo.');
             } else {
               await pokemonService.restarPokeball(usuario.id);
               const porcentajeExito = Math.round(probabilidadExito * 100);
@@ -570,7 +578,7 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #pokedex (Optimizado - Collage de 6)
+        // COMANDO: #pokedex (BLINDADO CONTRA ERRORES DE ID/NOMBRE)
         // ==========================================
         if (textoMinuscula.startsWith('#pokedex')) {
           try {
@@ -600,17 +608,26 @@ class BotManager extends EventEmitter {
                 let idApi = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : nombreBase;
                 if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
 
-                const dataApi = await consultarPokemon(idApi).catch(() => consultarPokemon(nombreBase));
+                // CONTROL DE EXCEPCIONES INTERNO PARA EVITAR LA CAÍDA GLOBAL
+                let dataApi = null;
+                try {
+                  dataApi = await consultarPokemon(idApi);
+                } catch (errId) {
+                  try {
+                    dataApi = await consultarPokemon(nombreBase);
+                  } catch (errName) {
+                    this.log(`[Pokedex] Saltando Pokémon inváldo en API: "${nombreBase}" (ID: ${idApi}). Error: ${errName.message}`, 'warn');
+                  }
+                }
                 
                 if (dataApi) {
-                  // --- LÓGICA DE BUFOS DE NIVEL APLICADA AQUÍ ---
                   const nivelActual = p.nivel || 1;
                   const multNivel = 1 + (nivelActual - 1) * 0.05;
 
                   datosBloque.push({
                     nombre: p.nombre,
                     nivel: nivelActual,
-                    experiencia: p.experiencia || 0, // <-- Nueva propiedad agregada
+                    experiencia: p.experiencia || 0, 
                     hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
                     atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
                     def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),
@@ -622,12 +639,17 @@ class BotManager extends EventEmitter {
                 }
               }
 
-              const imageBuffer = await generarCollagePokemon(datosBloque);
-              const media = new MessageMedia('image/png', imageBuffer.toString('base64'), `pokedex_${index}.png`);
+              // Solo genera la hoja si hay datos válidos procesados
+              if (datosBloque.length > 0) {
+                const imageBuffer = await generarCollagePokemon(datosBloque);
+                const media = new MessageMedia('image/png', imageBuffer.toString('base64'), `pokedex_${index}.png`);
 
-              await this.client.sendMessage(chatPrivadoId, media, {
-                caption: `📦 *Hoja de Pokédex ${index + 1}/${bloques.length}*`
-              });
+                await this.client.sendMessage(chatPrivadoId, media, {
+                  caption: `📦 *Hoja de Pokédex ${index + 1}/${bloques.length}*`
+                });
+              } else {
+                await this.client.sendMessage(chatPrivadoId, `⚠️ La hoja ${index + 1} no contenía Pokémon válidos para la API actual.`);
+              }
 
               await new Promise(resolve => setTimeout(resolve, 3000));
             }

@@ -1076,6 +1076,19 @@ body {
   min-height: 180px;
 }
 
+.pokedex-card-team {
+  background: rgba(255, 235, 165, 0.16);
+  border-color: rgba(255, 205, 0, 0.35);
+}
+
+.pokedex-card-team .pokedex-card-img {
+  background: linear-gradient(180deg, rgba(255,205,0,0.26), rgba(255,255,255,0.10));
+}
+
+.pokedex-card-team .pokedex-card-body strong {
+  color: #ffdd57;
+}
+
 .pokedex-card-img {
   width: 96px;
   height: 96px;

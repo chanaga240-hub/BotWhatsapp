@@ -3,6 +3,68 @@ const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const { MessageMedia } = require('whatsapp-web.js');
 
+const LOCAL_IMAGE_CACHE_DIR = path.join(process.cwd(), 'assets', 'pokemon');
+const LOCAL_IMAGE_CACHE = new Map();
+
+function ensureLocalImageCacheDir() {
+  if (!fs.existsSync(LOCAL_IMAGE_CACHE_DIR)) {
+    fs.mkdirSync(LOCAL_IMAGE_CACHE_DIR, { recursive: true });
+  }
+}
+
+async function downloadImageToLocalCache(imageUrl, fallbackName = 'pokemon') {
+  if (!imageUrl) return null;
+
+  ensureLocalImageCacheDir();
+  const safeName = String(fallbackName || 'pokemon').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const fileName = `${safeName || 'pokemon'}-${Date.now()}.png`;
+  const filePath = path.join(LOCAL_IMAGE_CACHE_DIR, fileName);
+
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) return null;
+
+    const arrayBuffer = await response.arrayBuffer();
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    return filePath;
+  } catch (error) {
+    console.warn(`No se pudo guardar imagen localmente (${imageUrl}):`, error.message);
+    return null;
+  }
+}
+
+function getLocalImagePath(imageUrl, fallbackName = 'pokemon') {
+  if (!imageUrl) return null;
+  const cacheKey = String(imageUrl);
+  if (LOCAL_IMAGE_CACHE.has(cacheKey)) {
+    return LOCAL_IMAGE_CACHE.get(cacheKey);
+  }
+
+  const safeName = String(fallbackName || 'pokemon').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const fileName = `${safeName || 'pokemon'}.png`;
+  const filePath = path.join(LOCAL_IMAGE_CACHE_DIR, fileName);
+
+  if (fs.existsSync(filePath)) {
+    LOCAL_IMAGE_CACHE.set(cacheKey, filePath);
+    return filePath;
+  }
+
+  return null;
+}
+
+async function ensureImageInLocalCache(imageUrl, fallbackName = 'pokemon') {
+  const existing = getLocalImagePath(imageUrl, fallbackName);
+  if (existing) {
+    return existing;
+  }
+
+  const savedPath = await downloadImageToLocalCache(imageUrl, fallbackName);
+  if (savedPath) {
+    LOCAL_IMAGE_CACHE.set(String(imageUrl), savedPath);
+  }
+  return savedPath;
+}
+
 // process.cwd() se para firmemente en la raíz: C:\Users\USER\Desktop\BotWhatsapp
 const rootDir = process.cwd(); 
 const ffmpegPath = path.join(rootDir, 'bin', 'ffmpeg.exe');
@@ -24,11 +86,21 @@ async function fetchImageMedia(imageUrl, filename = 'pokemon.png') {
   if (!imageUrl) return null;
 
   try {
+    const localPath = await ensureImageInLocalCache(imageUrl, filename.replace(/\.png$/i, ''));
+    if (localPath && fs.existsSync(localPath)) {
+      return MessageMedia.fromFilePath(localPath);
+    }
+
     return await MessageMedia.fromUrl(imageUrl, { filename, unsafeMime: true });
   } catch (error) {
     console.warn(`No se pudo descargar imagen (${imageUrl}):`, error.message);
     return null;
   }
+}
+
+async function getMediaFromUrlWithCache(imageUrl, filename = 'pokemon.png') {
+  if (!imageUrl) return null;
+  return fetchImageMedia(imageUrl, filename);
 }
 
 async function sendSticker(chat, imageUrl, stickerName, quoteId) {
@@ -194,4 +266,5 @@ module.exports = {
   replyWithLabeledStickers,
   replyWithImage,
   replyWithAudio,
+  getMediaFromUrlWithCache,
 };

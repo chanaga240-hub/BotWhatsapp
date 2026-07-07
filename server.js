@@ -1,4 +1,5 @@
 const db = require('./services/database');
+const { consultarPokemon, getImagen } = require('./services/pokeapi');
 
 const express = require('express');
 const http = require('http');
@@ -102,35 +103,49 @@ app.get('/api/pokedex/:usuarioId', async (req, res) => {
 
     const usuario = usuarioRows[0];
     const [pokesBD] = await db.execute(
-      'SELECT pokemon_id, nombre, nivel, experiencia FROM pokemon_atrapados WHERE usuario_id = ?',
-      [usuarioId]
+      `SELECT pa.pokemon_id, pa.nombre, pa.nivel, pa.experiencia, ep.jerarquia
+       FROM pokemon_atrapados pa
+       LEFT JOIN equipo_pokemon ep ON ep.pokemon_id = pa.id AND ep.usuario_id = ?
+       WHERE pa.usuario_id = ?`,
+      [usuarioId, usuarioId]
     );
 
     const pokedexDetallada = await Promise.all(pokesBD.map(async (p) => {
       try {
-        const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${p.pokemon_id}`);
-        const data = await response.json();
+        const data = await consultarPokemon(p.pokemon_id);
+        const imagen = getImagen(data);
+        const stats = Array.isArray(data.stats)
+          ? data.stats.map((stat) => ({
+              name: stat?.stat?.name || 'unknown',
+              value: stat?.base_stat || 0
+            }))
+          : [];
+        const tipos = Array.isArray(data.types)
+          ? data.types.map((typeSlot) => typeSlot?.type?.name || 'unknown')
+          : [];
 
         return {
           nombre: p.nombre,
-          imagen: data.sprites?.front_default || data.sprites?.other?.['official-artwork']?.front_default || null,
+          imagen: imagen || null,
           nivel: p.nivel || 1,
           pokemon_id: p.pokemon_id,
           experiencia: p.experiencia || 0,
-          stats: data.stats.map((stat) => ({
-            name: stat.stat.name,
-            value: stat.base_stat
-          })),
-          tipos: data.types.map((typeSlot) => typeSlot.type.name)
+          stats,
+          tipos,
+          estaEnEquipo: !!p.jerarquia,
+          jerarquia: p.jerarquia || null
         };
       } catch (e) {
         return {
           nombre: p.nombre,
           imagen: null,
           nivel: p.nivel || 1,
+          pokemon_id: p.pokemon_id,
           experiencia: p.experiencia || 0,
           stats: [],
-          tipos: []
+          tipos: [],
+          estaEnEquipo: !!p.jerarquia,
+          jerarquia: p.jerarquia || null
         };
       }
     }));

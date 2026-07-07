@@ -10,6 +10,32 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
     // Iniciamos una transacción para que si algo falla, no se hagan cambios parciales
     await connection.beginTransaction();
 
+    const [ownerRows] = await connection.execute(
+      'SELECT usuario_id FROM pokemon_atrapados WHERE pokemon_id = ? LIMIT 1',
+      [pokemonId]
+    );
+
+    const alreadyOwnedByAnother = ownerRows.some((row) => Number(row.usuario_id) !== Number(usuarioId));
+
+    if (alreadyOwnedByAnother) {
+      const successChance = 0.2;
+      const shouldGrant = Math.random() < successChance;
+      if (!shouldGrant) {
+        await connection.rollback();
+        return { success: false, duplicate: true };
+      }
+    }
+
+    const [existingRows] = await connection.execute(
+      'SELECT id FROM pokemon_atrapados WHERE usuario_id = ? AND pokemon_id = ?',
+      [usuarioId, pokemonId]
+    );
+
+    if (existingRows.length > 0) {
+      await connection.rollback();
+      return { success: false, duplicate: true };
+    }
+
     // 1. Guardar el Pokémon en el inventario
     const nivelFinal = (nivel === undefined || nivel === null) ? 1 : nivel;
     const experienciaFinal = (experiencia === undefined || experiencia === null) ? 0 : experiencia;
@@ -35,11 +61,11 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
     }
 
     await connection.commit();
-    return true;
+    return { success: true };
   } catch (error) {
     await connection.rollback();
     console.error('Error en la transacción de captura:', error);
-    return false;
+    return { success: false, duplicate: false, error: true };
   } finally {
     connection.release();
   }
@@ -782,6 +808,19 @@ async function usarHuevoIncubadora(whatsappId) {
   }
 }
 
+async function eliminarHuevoIncubadora(incubadoraId) {
+  const connection = await db.getConnection();
+  try {
+    await connection.execute('DELETE FROM incubadora WHERE id = ?', [incubadoraId]);
+    return { success: true };
+  } catch (error) {
+    console.error('Error al eliminar huevo de incubadora:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 async function revisarIncubadora(whatsappId) {
   const connection = await db.getConnection();
   try {
@@ -817,13 +856,10 @@ async function revisarIncubadora(whatsappId) {
       const tiempoPasadoMs = ahora - inicio;
 
       if (tiempoPasadoMs >= tiempoRequeridoMs) {
-        // Ya pasaron 24h: Eclosionar
-        await connection.execute('DELETE FROM incubadora WHERE id = ?', [huevo.id]); //[cite: 17]
-        
-        // 🔄 Buscamos dinámicamente en la PokeAPI hasta encontrar un bebé
+        // Se deja el huevo en la incubadora hasta que se complete el proceso de nacimiento.
+        // Así, si falla la consulta o el registro, no se pierde el huevo.
         const idDinamico = await obtenerPokemonBebeAleatorio();
-        
-        huevosEclosionados.push(idDinamico); //[cite: 17]
+        huevosEclosionados.push({ incubadoraId: huevo.id, pokemonId: idDinamico });
       } else {
         // Aún le falta tiempo
         const restanteMs = tiempoRequeridoMs - tiempoPasadoMs;
@@ -855,6 +891,7 @@ async function revisarIncubadora(whatsappId) {
 
 module.exports = {
   registrarCaptura,
+  eliminarHuevoIncubadora,
   restarPokeball,
   obtenerPokedex,
   verificarYObtenerPokemon,
