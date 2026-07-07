@@ -18,6 +18,7 @@ async function handleInventario(msg) {
     mensaje += `🪨 *rocas_evolutivas:* ${inv.rocas_evolutivas}\n`;
     mensaje += `🧬 *punta_adn:* ${inv.punta_adn}\n`;
     mensaje += `🥚 *egg:* ${inv.egg}\n`;
+    mensaje += `🧿 *mega_energia:* ${inv.mega_energia}\n`;
     mensaje += `──────────────────────\n`;
     mensaje += `👉 _Usa #buy para adquirir más objetos._`;
 

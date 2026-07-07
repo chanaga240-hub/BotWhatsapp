@@ -198,6 +198,120 @@ async function handleUse(msg, texto) {
     }
   }
 
+  // ==========================================
+  // LÓGICA: MEGA ENERGÍA
+  // ==========================================
+  if (item === 'mega_energia') {
+    let nombrePokemon = partes.slice(1).join(' ');
+    let megaDeseada = null;
+
+    // 1. Intentar buscar el Pokémon asumiendo que el usuario NO escribió la mega deseada
+    let pokemon = await pokemonService.verificarYObtenerPokemon(whatsappId, nombrePokemon);
+
+    // 2. Si no lo encuentra, verificar si la última palabra era la mega elegida (Ej: Mewtwo Mewtwo-mega-x)
+    if (!pokemon && partes.length > 2) {
+      const posiblesNombres = partes.slice(1, -1).join(' ');
+      const posibleMega = partes[partes.length - 1];
+      
+      pokemon = await pokemonService.verificarYObtenerPokemon(whatsappId, posiblesNombres);
+      if (pokemon) {
+        nombrePokemon = posiblesNombres;
+        megaDeseada = posibleMega.toLowerCase();
+      }
+    }
+
+    if (!pokemon) {
+      return await replyText(msg, '❌ No tienes un Pokémon con ese nombre.');
+    }
+
+    // 3. Bloquear si ya es una Mega Evolución
+    if (pokemon.nombre.toLowerCase().includes('-mega')) {
+      return await replyText(msg, `⚠️ Tu *${pokemon.nombre}* ya ha alcanzado la Mega Evolución y no puede ir más allá.`);
+    }
+
+    // 4. Verificar inventario antes de hacer peticiones a la API
+    if (!pokemon) {
+      return await replyText(msg, '❌ No tienes un Pokémon con ese nombre.');
+    }
+
+    // 3. Bloquear si ya es una Mega Evolución
+    if (pokemon.nombre.toLowerCase().includes('-mega')) {
+      return await replyText(msg, `⚠️ Tu *${pokemon.nombre}* ya ha alcanzado la Mega Evolución y no puede ir más allá.`);
+    }
+
+    // 4. NUEVO: Validar nivel mínimo (>= 10)
+    if (pokemon.nivel < 10) {
+      return await replyText(msg, `⚠️ Tu *${pokemon.nombre}* es nivel ${pokemon.nivel}.\nNecesita ser al menos nivel 10 para soportar el inmenso poder de la Mega Evolución.`);
+    }
+
+    const inventario = await usuarioService.obtenerInventarioCompleto(whatsappId);
+    if (!inventario || inventario.mega_energia <= 0) {
+      return await replyText(msg, '🧿 No tienes Mega Energía en tu inventario.');
+    }
+
+    // 5. Consultar variantes en la PokeAPI
+    let dataActual;
+    try {
+      dataActual = await consultarPokemon(pokemon.pokemon_id);
+    } catch (e) {
+      return await replyText(msg, '⚠️ Error al conectar con la PokéAPI para consultar a tu Pokémon.');
+    }
+
+    const todasLasVariantes = await getVariantesPokemon(dataActual);
+    
+    // Filtramos SOLO las que contienen "-mega"
+    const megasDisponibles = todasLasVariantes.filter(v => v.toLowerCase().includes('-mega'));
+
+    if (megasDisponibles.length === 0) {
+      return await replyText(msg, `⚠️ *${pokemon.nombre}* no tiene ninguna Mega Evolución documentada.`);
+    }
+
+    let nombreNuevaMega;
+
+    // 6. MANEJO DE MÚLTIPLES MEGAS (Mewtwo, Charizard)
+    if (megasDisponibles.length > 1) {
+      if (!megaDeseada) {
+        const listaFormateada = megasDisponibles.map(m => formatName(m)).join('\n👉 ');
+        return await replyText(msg, 
+          `✨ La Mega Energía está reaccionando de forma inestable con *${pokemon.nombre}*.\nTiene múltiples formas:\n\n👉 ${listaFormateada}\n\n` +
+          `Específica a cuál quieres evolucionar añadiendo el nombre al final del comando.\n` +
+          `*Ejemplo:* \`#use mega_energia ${pokemon.nombre} ${megasDisponibles[0]}\``
+        );
+      }
+
+      // Validar si la mega escrita existe para este pokemon
+      const megaMatch = megasDisponibles.find(m => m.toLowerCase() === megaDeseada || formatName(m).toLowerCase() === megaDeseada);
+      
+      if (!megaMatch) {
+        const listaFormateada = megasDisponibles.map(m => formatName(m)).join(', ');
+        return await replyText(msg, `❌ Esa no es una forma válida. Opciones: *${listaFormateada}*`);
+      }
+      
+      nombreNuevaMega = megaMatch;
+    } else {
+      // Si solo tiene una Mega, la tomamos directamente
+      nombreNuevaMega = megasDisponibles[0];
+    }
+
+    // 7. Extraer los datos de la nueva Mega para su ID oficial
+    const dataNuevaMega = await consultarPokemon(nombreNuevaMega);
+    const nuevoNombreFormateado = formatName(dataNuevaMega.name);
+
+    // 8. Ejecutar cambio en BD
+    const exito = await pokemonService.aplicarMegaEvolucion(
+      whatsappId, 
+      pokemon.id, 
+      dataNuevaMega.id, 
+      nuevoNombreFormateado
+    );
+
+    if (exito) {
+      return await replyText(msg, `🌟 ¡INCREÍBLE! 🌟\n\nTu *${pokemon.nombre}* ha reaccionado a la Mega Energía de tu inventario y ha megaevolucionado a *${nuevoNombreFormateado}*.\n\n🧿 Sus estadísticas se han disparado por los aires.`);
+    } else {
+      return await replyText(msg, '⚠️ Hubo un error interno al intentar aplicar la Mega Energía.');
+    }
+  }
+
   return await replyText(msg, '❌ Ese objeto no se puede usar o no existe.\nIntenta con `pocion_xp` o `rocas_evolutivas`.');
 }
 

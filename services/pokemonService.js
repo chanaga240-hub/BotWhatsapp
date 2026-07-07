@@ -882,6 +882,45 @@ async function revisarIncubadora(whatsappId) {
   }
 }
 
+/**
+ * Aplica la Mega Energía a un Pokémon, actualizando su forma y restando el ítem.
+ */
+async function aplicarMegaEvolucion(whatsappId, pokemonAtrapadoId, nuevoPokemonId, nuevoNombre) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Restar 1 Mega Energía del inventario del usuario
+    const [result] = await connection.execute(
+      `UPDATE inventario i 
+       JOIN usuarios u ON i.usuario_id = u.id 
+       SET i.mega_energia = i.mega_energia - 1 
+       WHERE u.whatsapp_id = ? AND i.mega_energia > 0`,
+      [whatsappId]
+    );
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return false; // No tenía energía disponible
+    }
+
+    // 2. Actualizar el ID y el Nombre del Pokémon a su forma Mega
+    await connection.execute(
+      'UPDATE pokemon_atrapados SET pokemon_id = ?, nombre = ? WHERE id = ?',
+      [nuevoPokemonId, nuevoNombre, pokemonAtrapadoId]
+    );
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en aplicarMegaEvolucion:', error);
+    return false;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   eliminarHuevoIncubadora,
@@ -907,5 +946,6 @@ module.exports = {
   enviarExpedicion,
   obtenerExpediciones,
   usarHuevoIncubadora,
-  revisarIncubadora
+  revisarIncubadora,
+  aplicarMegaEvolucion
 };
