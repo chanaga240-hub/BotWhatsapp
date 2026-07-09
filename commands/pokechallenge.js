@@ -34,7 +34,7 @@ async function handlePokechallenge(msg, texto) {
         `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
 
       try {
-        const media = await getMediaFromUrlWithCache(imgRivalDesafio, `${desafioExistente.pokemonNombre || 'pokemon'}.png`);
+        const media = MessageMedia.fromFilePath(imgRivalDesafio);
         return await msg.reply(media, undefined, { caption: textoDesafioPendiente });
       } catch (error) {
         console.error('Error al enviar la foto del desafío pendiente:', error);
@@ -97,7 +97,7 @@ async function handlePokechallenge(msg, texto) {
       `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
 
     try {
-      const media = await getMediaFromUrlWithCache(imgRivalDesafio, `${pokeDataNPC.name || 'pokemon'}.png`);
+      const media = MessageMedia.fromFilePath(imgRivalDesafio);
       return await msg.reply(media, undefined, { caption: textoDesafio });
     } catch (error) {
       console.error('Error al enviar la foto del desafío:', error);

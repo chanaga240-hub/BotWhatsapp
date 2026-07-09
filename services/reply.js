@@ -3,74 +3,11 @@ const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const { MessageMedia } = require('whatsapp-web.js');
 
-const LOCAL_IMAGE_CACHE_DIR = path.join(process.cwd(), 'assets', 'pokemon');
-const LOCAL_IMAGE_CACHE = new Map();
-
-function ensureLocalImageCacheDir() {
-  if (!fs.existsSync(LOCAL_IMAGE_CACHE_DIR)) {
-    fs.mkdirSync(LOCAL_IMAGE_CACHE_DIR, { recursive: true });
-  }
-}
-
-async function downloadImageToLocalCache(imageUrl, fallbackName = 'pokemon') {
-  if (!imageUrl) return null;
-
-  ensureLocalImageCacheDir();
-  const safeName = String(fallbackName || 'pokemon').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const fileName = `${safeName || 'pokemon'}-${Date.now()}.png`;
-  const filePath = path.join(LOCAL_IMAGE_CACHE_DIR, fileName);
-
-  try {
-    const response = await fetch(imageUrl);
-    if (!response.ok) return null;
-
-    const arrayBuffer = await response.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
-    return filePath;
-  } catch (error) {
-    console.warn(`No se pudo guardar imagen localmente (${imageUrl}):`, error.message);
-    return null;
-  }
-}
-
-function getLocalImagePath(imageUrl, fallbackName = 'pokemon') {
-  if (!imageUrl) return null;
-  const cacheKey = String(imageUrl);
-  if (LOCAL_IMAGE_CACHE.has(cacheKey)) {
-    return LOCAL_IMAGE_CACHE.get(cacheKey);
-  }
-
-  const safeName = String(fallbackName || 'pokemon').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  const fileName = `${safeName || 'pokemon'}.png`;
-  const filePath = path.join(LOCAL_IMAGE_CACHE_DIR, fileName);
-
-  if (fs.existsSync(filePath)) {
-    LOCAL_IMAGE_CACHE.set(cacheKey, filePath);
-    return filePath;
-  }
-
-  return null;
-}
-
-async function ensureImageInLocalCache(imageUrl, fallbackName = 'pokemon') {
-  const existing = getLocalImagePath(imageUrl, fallbackName);
-  if (existing) {
-    return existing;
-  }
-
-  const savedPath = await downloadImageToLocalCache(imageUrl, fallbackName);
-  if (savedPath) {
-    LOCAL_IMAGE_CACHE.set(String(imageUrl), savedPath);
-  }
-  return savedPath;
-}
-
-// process.cwd() se para firmemente en la raíz: C:\Users\USER\Desktop\BotWhatsapp
+// Directorio raíz y configuración de FFmpeg
 const rootDir = process.cwd(); 
 const ffmpegPath = path.join(rootDir, 'bin', 'ffmpeg.exe');
 const ffprobePath = path.join(rootDir, 'bin', 'ffprobe.exe');
 
-// Validación automática en tu consola al arrancar
 if (!fs.existsSync(ffmpegPath)) {
   console.error(`\n❌ [ALERTA FFmpeg]: No se encontró ffmpeg.exe en: ${ffmpegPath}\n`);
 } else {
@@ -81,31 +18,36 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 process.env.FFMPEG_PATH = ffmpegPath;
 
-// 2. Funciones auxiliares internas
-async function fetchImageMedia(imageUrl, filename = 'pokemon.png') {
-  if (!imageUrl) return null;
+// ==========================================
+// 1. FUNCIONES DE CARGA DE IMAGEN LOCAL
+// ==========================================
+
+async function fetchImageMedia(imagePath, filename = 'pokemon.png') {
+  if (!imagePath) return null;
 
   try {
-    const localPath = await ensureImageInLocalCache(imageUrl, filename.replace(/\.png$/i, ''));
-    if (localPath && fs.existsSync(localPath)) {
-      return MessageMedia.fromFilePath(localPath);
+    // Verificamos si la ruta local (ej. C:\...\796.png) existe en el disco duro
+    if (fs.existsSync(imagePath)) {
+      return MessageMedia.fromFilePath(imagePath);
+    } else {
+      console.warn(`⚠️ No se encontró la imagen local en: ${imagePath}`);
+      return null;
     }
-
-    return await MessageMedia.fromUrl(imageUrl, { filename, unsafeMime: true });
   } catch (error) {
-    console.warn(`No se pudo descargar imagen (${imageUrl}):`, error.message);
+    console.warn(`⚠️ Error al cargar imagen local (${imagePath}):`, error.message);
     return null;
   }
 }
 
-async function getMediaFromUrlWithCache(imageUrl, filename = 'pokemon.png') {
-  if (!imageUrl) return null;
-  return fetchImageMedia(imageUrl, filename);
+// Mantenemos este nombre para no romper los comandos que lo importan,
+// pero ahora su única función es procesar la ruta local.
+async function getMediaFromUrlWithCache(imagePath, filename = 'pokemon.png') {
+  return fetchImageMedia(imagePath, filename);
 }
 
-async function sendSticker(chat, imageUrl, stickerName, quoteId) {
+async function sendSticker(chat, imagePath, stickerName, quoteId) {
   const safeName = String(stickerName || 'pokemon').substring(0, 30);
-  const media = await fetchImageMedia(imageUrl, `${safeName}.png`);
+  const media = await fetchImageMedia(imagePath, `${safeName}.png`);
   if (!media) return false;
 
   try {
@@ -121,7 +63,10 @@ async function sendSticker(chat, imageUrl, stickerName, quoteId) {
   }
 }
 
-// 3. Funciones de respuesta exportadas
+// ==========================================
+// 2. FUNCIONES DE RESPUESTA EXPORTADAS
+// ==========================================
+
 async function replyText(msg, text) {
   if (!msg || typeof msg.reply !== 'function') {
     console.error('replyText: msg inválido o sin método reply');
@@ -130,31 +75,24 @@ async function replyText(msg, text) {
   return msg.reply(text);
 }
 
-async function replyWithSticker(msg, texto, imageUrl, stickerName = 'pokemon') {
-  // 1. Identificar si es mensaje de usuario (msg) o solo un objeto { id: { remote: groupId } }
+async function replyWithSticker(msg, texto, imagePath, stickerName = 'pokemon') {
   const isRealMessage = msg && typeof msg.reply === 'function';
 
-  // 2. Enviar texto de forma segura
   if (isRealMessage) {
     await msg.reply(texto);
   } else {
-    // Si viene del cron, no usamos msg.reply, usamos el cliente.
-    // IMPORTANTE: Para evitar el require circular, inyectaremos el cliente o lo obtendremos del bot manager
     const bot = require('./bot'); 
     const chatId = msg.id && msg.id.remote ? msg.id.remote : msg;
     await bot.client.sendMessage(chatId, texto);
   }
 
-  // 3. Envío del sticker (Evita usar msg.getChat() que es lo que rompe todo)
-  if (!imageUrl) return;
+  if (!imagePath) return;
 
   const chatId = isRealMessage ? msg.id.remote : (msg.id ? msg.id.remote : msg);
-  
-  // En lugar de await msg.getChat(), usa esto que es más seguro:
   const bot = require('./bot');
   const chat = await bot.client.getChatById(chatId);
   
-  await sendSticker(chat, imageUrl, stickerName, isRealMessage ? msg.id._serialized : null);
+  await sendSticker(chat, imagePath, stickerName, isRealMessage ? msg.id._serialized : null);
 }
 
 async function replyWithLabeledStickers(msg, text, labeledItems, textFirst = false) {
@@ -166,22 +104,16 @@ async function replyWithLabeledStickers(msg, text, labeledItems, textFirst = fal
       if (item.label) {
         await chat.sendMessage(item.label, { quotedMessageId: quoteId });
       }
-
-      if (item.url) {
+      if (item.url) { 
+        // item.url ahora contiene la ruta local del disco duro
         await sendSticker(chat, item.url, item.stickerName || 'pokemon', quoteId);
       }
     }
   };
 
-  if (textFirst && text) {
-    await msg.reply(text);
-  }
-
+  if (textFirst && text) await msg.reply(text);
   await sendStickers();
-
-  if (!textFirst && text) {
-    await msg.reply(text);
-  }
+  if (!textFirst && text) await msg.reply(text);
 }
 
 async function replyWithImage(msg, imagePath, caption = '') {
@@ -207,7 +139,7 @@ async function replyWithImage(msg, imagePath, caption = '') {
   }
 }
 
-const { execFile } = require('child_process'); // Pon esto arriba o dentro de la función
+const { execFile } = require('child_process');
 
 async function replyWithAudio(msg, audioUrl) {
   if (!audioUrl) return;
@@ -219,14 +151,12 @@ async function replyWithAudio(msg, audioUrl) {
   const tempMp3 = path.join(rootDir, `temp_${Date.now()}.mp3`);
 
   try {
-    // 1. Descargamos el .ogg de la PokéAPI
+    // Los audios SÍ siguen siendo URLs web, así que este fetch se mantiene.
     const response = await fetch(audioUrl);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const arrayBuffer = await response.arrayBuffer();
     fs.writeFileSync(tempOgg, Buffer.from(arrayBuffer));
 
-    // 2. CONVERSIÓN FORZADA POR COMANDO DIRECTO DE WINDOWS
-    // Ejecuta: ffmpeg.exe -i temp.ogg temp.mp3 -y
     await new Promise((resolve, reject) => {
       execFile(currentFfmpegPath, ['-i', tempOgg, tempMp3, '-y'], (error) => {
         if (error) {
@@ -236,12 +166,10 @@ async function replyWithAudio(msg, audioUrl) {
       });
     });
 
-    // 3. Leemos el MP3 real generado
     if (!fs.existsSync(tempMp3)) throw new Error('El archivo MP3 no fue generado.');
     const mp3Buffer = fs.readFileSync(tempMp3);
     const base64Data = mp3Buffer.toString('base64');
 
-    // 4. Lo enviamos a WhatsApp
     const media = new MessageMedia('audio/mp3', base64Data, 'grito.mp3');
     const chat = await msg.getChat();
     await chat.sendMessage(media, {
@@ -254,7 +182,6 @@ async function replyWithAudio(msg, audioUrl) {
     console.warn(`Falló la conversión nativa de audio (${audioUrl}):`, error.message || error);
     throw error;
   } finally {
-    // Limpieza de archivos del disco
     if (fs.existsSync(tempOgg)) fs.unlinkSync(tempOgg);
     if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
   }

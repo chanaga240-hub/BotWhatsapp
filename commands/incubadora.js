@@ -1,7 +1,7 @@
 const { MessageMedia } = require('whatsapp-web.js'); 
 const pokemonService = require('../services/pokemonService');
-const { consultarPokemon, formatName } = require('../services/pokeapi');
-const { getMediaFromUrlWithCache } = require('../services/reply');
+
+const { consultarPokemon, formatName, getImagen } = require('../services/pokeapi');
 
 async function handleIncubadora(msg) {
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
@@ -33,16 +33,16 @@ async function handleIncubadora(msg) {
         }
         
         const textoNacimiento = `🎊 Ha nacido un *${nombrePokemon}* (Nivel 1).\n¡Se ha añadido a tu inventario!`;
-        const hdUrl = data.sprites?.other?.['official-artwork']?.front_default || data.sprites?.front_default;
+        const rutaImagen = getImagen(data);
         
-        if (hdUrl) {
-          const media = await getMediaFromUrlWithCache(hdUrl, `${nombrePokemon}.png`);
-          
-          if (media) {
+        if (rutaImagen) {
+          try {
+            const media = MessageMedia.fromFilePath(rutaImagen);
             await chat.sendMessage(media, { 
               caption: textoNacimiento 
             });
-          } else {
+          } catch (e) {
+            console.error('Error cargando imagen local en incubadora:', e.message);
             await chat.sendMessage(textoNacimiento);
           }
         } else {

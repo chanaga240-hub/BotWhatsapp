@@ -1,10 +1,21 @@
 :root {
   --bg: #070b12;
+  --bg-dark: #0a0f18;
   --surface: rgba(18, 26, 40, 0.72);
   --text-main: #f0f4fa;
   --text-muted: #8fa3bf;
   --accent: #4dabff;
+  --accent-cyan: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.5);
   --border: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --success: #10b981;
+  --red: #ef4444;
+  --yellow: #facc15;
+  --blue: #3b82f6;
+  --warn: #f59e0b;
+  --font-main: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,7 +23,7 @@
 body {
   background-color: var(--bg);
   color: var(--text-main);
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-main);
   padding: 20px;
 }
 
@@ -90,13 +101,14 @@ body {
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
+  border: none;
 }
-.btn-cyber:disabled { border-color: var(--text-muted); color: var(--text-muted); cursor: not-allowed; opacity: 0.5; }
+.btn-cyber:disabled { background: var(--surface); color: var(--text-muted); cursor: not-allowed; opacity: 0.5; }
 .btn-cyber:not(:disabled):hover { background: var(--accent-cyan); color: var(--bg-dark); box-shadow: 0 0 20px var(--accent-glow); }
 .btn-ghost { background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; transition: 0.3s; }
 .btn-ghost:hover { border-color: var(--text-main); color: var(--text-main); }
 
-/* Bracket Visal */
+/* Bracket Visual */
 .bracket-container { overflow-x: auto; padding: 1rem 0; cursor: grab; }
 .bracket-wrapper { display: flex; gap: 3rem; }
 .bracket-round { display: flex; flex-direction: column; justify-content: space-around; gap: 1.5rem; min-width: 240px; position: relative; }

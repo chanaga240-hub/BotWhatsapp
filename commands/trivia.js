@@ -3,6 +3,7 @@ const configuracionService = require('../services/configuracionService');
 const { consultarPokemon, getImagen, randomPokemonId } = require('../services/pokeapi');
 const { generarSilueta } = require('../services/canvasService');
 const usuarioService = require('../services/usuarioService');
+const fs = require('fs');
 
 const triviasActivas = new Map();
 
@@ -93,8 +94,15 @@ async function handleTrivia(msg, client) {
             if (id === idCorrecto) pokeCorrectoDatos = data;
         }
 
-        const urlImagen = getImagen(pokeCorrectoDatos);
-        const siluetaBuffer = await generarSilueta(urlImagen);
+        let urlImagen = getImagen(pokeCorrectoDatos);
+        let siluetaBuffer = null;
+
+        // Validamos que el archivo de imagen EXISTA realmente en tu disco duro
+        if (urlImagen && fs.existsSync(urlImagen)) {
+             siluetaBuffer = await generarSilueta(urlImagen);
+        } else {
+             console.log(`⚠️ La imagen local no existe en: ${urlImagen}. Saltando ronda.`);
+        }
 
         // --- NUEVA VALIDACIÓN AÑADIDA ---
         // Si falló la descarga o generación de la imagen, reintentamos la ronda.

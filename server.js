@@ -14,6 +14,7 @@ const wss = new WebSocketServer({ server });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/imagenes', express.static(path.join(__dirname, 'imagenes')));
 
 const clients = new Set();
 

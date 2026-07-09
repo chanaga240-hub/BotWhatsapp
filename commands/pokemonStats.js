@@ -102,7 +102,7 @@ async function handlePokemonStats(msg) {
     const urlImagen = getImagen(dataApi);
     if (urlImagen) {
       try {
-        const media = await getMediaFromUrlWithCache(urlImagen, `${pokeDB.nombre}.png`);
+        const media = MessageMedia.fromFilePath(urlImagen);
         if (media) {
           const chat = await msg.getChat();
           await chat.sendMessage(media, {

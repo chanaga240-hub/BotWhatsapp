@@ -328,7 +328,7 @@ window.viewPokedex = async function(usuarioId, nombre) {
           .map((poke) => `
             <article class="pokedex-card ${poke.estaEnEquipo ? 'pokedex-card-team' : ''}">
               <div class="pokedex-card-img">
-                <img src="${poke.imagen || 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'}" alt="${escapeHtml(poke.nombre)}" loading="lazy" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'">
+                <img src="/imagenes/${poke.pokemon_id}.png" alt="${escapeHtml(poke.nombre)}" loading="lazy" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'">
               </div>
               <div class="pokedex-card-body">
                 <div class="pokedex-card-header">

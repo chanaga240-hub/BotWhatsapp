@@ -49,7 +49,7 @@ class BotManager extends EventEmitter {
         await this.client.sendMessage(groupId, mensaje);
         
         if (urlImagen) {
-          const media = await MessageMedia.fromUrl(urlImagen, { unsafeMime: true });
+          const media = MessageMedia.fromFilePath(urlImagen);
           if (media) {
             try {
               await this.client.sendMessage(groupId, media, { 
@@ -407,7 +407,7 @@ class BotManager extends EventEmitter {
             for (const groupId of this.GRUPOS_PERMITIDOS) {
               await this.client.sendMessage(groupId, mensajeAlerta);
               if (urlImagen) {
-                const media = await getMediaFromUrlWithCache(urlImagen, `${nombre}.png`);
+                const media = MessageMedia.fromFilePath(urlImagen);
                 if (media) {
                   try {
                     await this.client.sendMessage(groupId, media, { sendMediaAsSticker: true, stickerName: nombre });

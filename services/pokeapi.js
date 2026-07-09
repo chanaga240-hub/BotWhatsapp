@@ -1,3 +1,5 @@
+const path = require('path');
+
 const db = require('./database');
 const POKEAPI_BASE = 'https://pokeapi.co/api/v2/pokemon';
 
@@ -302,14 +304,14 @@ function getStat(pokemon, statName) {
 }
 
 function getImagen(pokemon) {
-  const sprites = pokemon?.sprites || {};
-  return (
-    sprites.other?.['official-artwork']?.front_default ||
-    sprites.other?.home?.front_default ||
-    sprites.other?.dream_world?.front_default ||
-    sprites.front_default ||
-    null
-  );
+  if (!pokemon || !pokemon.id) return null;
+  
+  // path.join armará la ruta correcta independientemente de tu sistema operativo.
+  // Asumo que tus imágenes están en formato .png (Ej: "1.png", "10001.png").
+  // Si están en .jpg o .webp, simplemente cambia la extensión aquí abajo.
+  // Nota: Si la carpeta "imagenes" está en la raíz de tu proyecto y "pokeapi.js" está dentro de "services",
+  // '..' nos saca de "services" hacia la raíz.
+  return path.join(__dirname, '..', 'imagenes', `${pokemon.id}.png`);
 }
 
 function getAudioGrito(pokemon) {

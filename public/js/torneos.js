@@ -2,10 +2,12 @@ let state = {
   selected: new Set(),
   bracket: [],
   trainers: [],
-  // Nuevas variables para el sistema avanzado
   redemptionMatches: [],
   redemptionQueue: [],
-  thirdPlaceMatch: null
+  thirdPlaceMatch: null,
+  tourneyType: 'eliminatoria',
+  rrMatches: [],
+  standings: [] 
 };
 
 // Referencias DOM
@@ -17,6 +19,7 @@ const phase1 = document.getElementById('phase1');
 const phase2 = document.getElementById('phase2');
 const bracketVisual = document.getElementById('bracketVisual');
 const btnReset = document.getElementById('btnReset');
+const tourneyTypeSelect = document.getElementById('tourneyType');
 
 // ── SISTEMA DE GUARDADO (LOCALSTORAGE) ──
 function saveTournament() {
@@ -25,7 +28,10 @@ function saveTournament() {
     bracket: state.bracket,
     redemptionMatches: state.redemptionMatches,
     redemptionQueue: state.redemptionQueue,
-    thirdPlaceMatch: state.thirdPlaceMatch
+    thirdPlaceMatch: state.thirdPlaceMatch,
+    tourneyType: state.tourneyType,
+    rrMatches: state.rrMatches,
+    standings: state.standings
   };
   localStorage.setItem('pokeTorneoState', JSON.stringify(dataToSave));
 }
@@ -39,6 +45,9 @@ function loadTournament() {
     state.redemptionMatches = data.redemptionMatches || [];
     state.redemptionQueue = data.redemptionQueue || [];
     state.thirdPlaceMatch = data.thirdPlaceMatch || null;
+    state.tourneyType = data.tourneyType || 'eliminatoria';
+    state.rrMatches = data.rrMatches || [];
+    state.standings = data.standings || [];
     return true;
   }
   return false;
@@ -51,13 +60,22 @@ function clearTournament() {
   state.redemptionMatches = [];
   state.redemptionQueue = [];
   state.thirdPlaceMatch = null;
+  state.rrMatches = [];
+  state.standings = [];
 }
 
 // Inicializar y obtener datos de la BD
 async function loadTrainersFromDB() {
   try {
     trainerGrid.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">Cargando entrenadores de la base de datos...</div>';
-    const res = await fetch('/api/entrenadores');
+    // MOCK PARA PRUEBAS: Reemplaza esto con tu fetch('/api/entrenadores') real si es necesario
+    const res = await fetch('/api/entrenadores').catch(() => ({ 
+      ok: true, 
+      json: () => Promise.resolve([
+        {id: 1, nombre_whatsapp: 'Ash', nivel: 10}, {id: 2, nombre_whatsapp: 'Misty', nivel: 9},
+        {id: 3, nombre_whatsapp: 'Brock', nivel: 8}, {id: 4, nombre_whatsapp: 'Gary', nivel: 12}
+      ]) 
+    }));
     if (!res.ok) throw new Error('Error al obtener entrenadores');
     const data = await res.json();
     
@@ -67,12 +85,12 @@ async function loadTrainersFromDB() {
       nivel: t.nivel || 1
     }));
     
-    // Si hay un torneo guardado en curso, saltar directo a la Fase 2
-    if (loadTournament() && state.bracket.length > 0) {
+    if (loadTournament() && (state.bracket.length > 0 || state.rrMatches.length > 0)) {
       updateUI();
       phase1.classList.remove('active');
       phase2.classList.add('active');
-      renderBracket();
+      if (state.tourneyType === 'eliminatoria') renderBracket();
+      else renderRoundRobin();
     } else {
       renderTrainers();
     }
@@ -127,7 +145,14 @@ function updateUI() {
 searchInput.addEventListener('input', (e) => renderTrainers(e.target.value));
 
 btnGenerate.addEventListener('click', () => {
-  generateBracketLogic();
+  state.tourneyType = tourneyTypeSelect ? tourneyTypeSelect.value : 'eliminatoria';
+  
+  if (state.tourneyType === 'eliminatoria') {
+    generateBracketLogic();
+  } else {
+    generateRoundRobinLogic();
+  }
+  
   phase1.classList.remove('active');
   phase2.classList.add('active');
 });
@@ -142,16 +167,131 @@ btnReset.addEventListener('click', () => {
   }
 });
 
-// Fase 2: Lógica del Bracket
+// ── LÓGICA TODOS CONTRA TODOS (LIGA) ──
+function generateRoundRobinLogic() {
+  state.rrMatches = [];
+  state.standings = [];
+  
+  let players = Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
+  
+  players.forEach(p => {
+    state.standings.push({ ...p, wins: 0, losses: 0, matchesPlayed: 0 });
+  });
+
+  if (players.length % 2 !== 0) {
+    players.push({ id: 'bye', nombre: 'DESCANSO', nivel: 0 });
+  }
+
+  const numDays = players.length - 1;
+  const halfSize = players.length / 2;
+  let matchIdCounter = 1;
+
+  for (let day = 0; day < numDays; day++) {
+    let roundMatches = [];
+    for (let i = 0; i < halfSize; i++) {
+      const p1 = players[i];
+      const p2 = players[players.length - 1 - i];
+
+      if (p1.id !== 'bye' && p2.id !== 'bye') {
+        roundMatches.push({
+          id: `RR_${matchIdCounter++}`,
+          p1: p1,
+          p2: p2,
+          winner: null
+        });
+      }
+    }
+    state.rrMatches.push(roundMatches);
+    players.splice(1, 0, players.pop());
+  }
+
+  saveTournament();
+  renderRoundRobin();
+}
+
+function renderRoundRobin() {
+  bracketVisual.innerHTML = '';
+  bracketVisual.className = '';
+  bracketVisual.style.display = 'grid';
+  bracketVisual.style.gridTemplateColumns = '1fr 350px'; 
+  bracketVisual.style.gap = '2rem';
+
+  const matchesSection = document.createElement('div');
+  matchesSection.innerHTML = '<h3 style="color: var(--accent); margin-bottom: 1rem;">📅 Calendario de Combates</h3>';
+  
+  state.rrMatches.forEach((round, index) => {
+    const roundDiv = document.createElement('div');
+    roundDiv.style.marginBottom = '2rem';
+    roundDiv.innerHTML = `<h4 style="color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Jornada ${index + 1}</h4>`;
+    
+    const matchesGrid = document.createElement('div');
+    matchesGrid.style.display = 'grid';
+    matchesGrid.style.gap = '1rem';
+    
+    round.forEach(match => {
+      matchesGrid.appendChild(createMatchHTML(match, index, 'roundrobin'));
+    });
+    
+    roundDiv.appendChild(matchesGrid);
+    matchesSection.appendChild(roundDiv);
+  });
+
+  const standingsSection = document.createElement('div');
+  standingsSection.innerHTML = '<h3 style="color: var(--accent); margin-bottom: 1rem;">📊 Clasificación</h3>';
+  
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.style.background = 'var(--bg-dark)';
+  table.innerHTML = `
+    <thead>
+      <tr style="border-bottom: 1px solid var(--border); color: var(--text-muted); text-align: left;">
+        <th style="padding: 0.5rem;">Pos</th>
+        <th style="padding: 0.5rem;">Entrenador</th>
+        <th style="padding: 0.5rem; text-align: center;">V</th>
+        <th style="padding: 0.5rem; text-align: center;">D</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${state.standings.map((p, i) => `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding: 0.8rem 0.5rem; color: ${i === 0 ? 'var(--yellow)' : 'inherit'}; font-weight: ${i === 0 ? 'bold' : 'normal'};">#${i + 1}</td>
+          <td style="padding: 0.8rem 0.5rem;">${escapeHtml(p.nombre)}</td>
+          <td style="padding: 0.8rem 0.5rem; text-align: center; color: var(--success);">${p.wins}</td>
+          <td style="padding: 0.8rem 0.5rem; text-align: center; color: var(--red);">${p.losses}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+  
+  standingsSection.appendChild(table);
+  bracketVisual.appendChild(matchesSection);
+  bracketVisual.appendChild(standingsSection);
+}
+
+function sortStandings() {
+  state.standings.sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    
+    const headToHeadMatch = state.rrMatches.flat().find(m => 
+      m.winner && 
+      ((m.p1.id === a.id && m.p2.id === b.id) || (m.p1.id === b.id && m.p2.id === a.id))
+    );
+
+    if (headToHeadMatch) {
+      return headToHeadMatch.winner.id === a.id ? -1 : 1;
+    }
+    return 0;
+  });
+}
+
+// ── LÓGICA ELIMINATORIA ──
 function generateBracketLogic() {
-  // Limpiar estado de torneos previos
   state.redemptionMatches = [];
   state.redemptionQueue = [];
   state.thirdPlaceMatch = null;
 
   let players = Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
-
-  // Mezclar jugadores
   for (let i = players.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [players[i], players[j]] = [players[j], players[i]];
@@ -173,11 +313,7 @@ function generateBracketLogic() {
 
   for (let i = 0; i < playInCount; i++) {
     currentRound.push({
-      id: matchIdCounter++,
-      p1: playInPlayers[i * 2],
-      p2: playInPlayers[i * 2 + 1],
-      winner: null,
-      nextMatchId: null
+      id: matchIdCounter++, p1: playInPlayers[i * 2], p2: playInPlayers[i * 2 + 1], winner: null, nextMatchId: null
     });
   }
   if (currentRound.length > 0) state.bracket.push(currentRound);
@@ -188,11 +324,7 @@ function generateBracketLogic() {
     if (byePlayers.length > 0) p2 = byePlayers.shift();
 
     round1.push({
-      id: matchIdCounter++,
-      p1: p1,
-      p2: p2,
-      winner: null,
-      nextMatchId: null
+      id: matchIdCounter++, p1: p1, p2: p2, winner: null, nextMatchId: null
     });
   }
   
@@ -229,15 +361,9 @@ function generateBracketLogic() {
   renderBracket();
 }
 
-// ── LÓGICA DE PERDEDORES ──
 function setupThirdPlace(player) {
   if (!state.thirdPlaceMatch) {
-    state.thirdPlaceMatch = {
-      id: 'third_match',
-      p1: player,
-      p2: null,
-      winner: null
-    };
+    state.thirdPlaceMatch = { id: 'third_match', p1: player, p2: null, winner: null };
   } else {
     state.thirdPlaceMatch.p2 = player;
   }
@@ -245,23 +371,15 @@ function setupThirdPlace(player) {
 
 function addToRedemption(player) {
   state.redemptionQueue.push(player);
-  // Si hay al menos 2 en cola, armamos un combate de redención
   if (state.redemptionQueue.length >= 2) {
     const p1 = state.redemptionQueue.shift();
     const p2 = state.redemptionQueue.shift();
     state.redemptionMatches.push({
-      id: 'R_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-      p1: p1,
-      p2: p2,
-      winner: null
+      id: 'R_' + Date.now() + '_' + Math.floor(Math.random() * 1000), p1: p1, p2: p2, winner: null
     });
   }
 }
 
-// Fase 3: Renderizado Avanzado
-// Fase 3: Renderizado Avanzado
-// Fase 3: Renderizado Avanzado
-// Fase 3: Renderizado Avanzado
 function renderBracket() {
   bracketVisual.innerHTML = '';
   bracketVisual.className = ''; 
@@ -269,7 +387,6 @@ function renderBracket() {
   bracketVisual.style.flexDirection = 'column';
   bracketVisual.style.gap = '3rem'; 
 
-  // 1. RENDERIZAR TORNEO PRINCIPAL
   const mainSection = document.createElement('div');
   mainSection.innerHTML = '<h3 style="margin-bottom: 1rem; color: var(--blue);">🏆 Torneo Principal</h3>';
   
@@ -289,7 +406,6 @@ function renderBracket() {
   mainSection.appendChild(mainWrapper);
   bracketVisual.appendChild(mainSection);
 
-  // 2. DETECTAR Y MOSTRAR GANADOR FINAL
   const finalRound = state.bracket[state.bracket.length - 1];
   const finalMatch = finalRound ? finalRound[0] : null;
   if (finalMatch && finalMatch.winner) {
@@ -299,7 +415,6 @@ function renderBracket() {
     bracketVisual.appendChild(champDiv);
   }
 
-  // 3. RENDERIZAR 3ER LUGAR
   if (state.thirdPlaceMatch) {
     const thirdSection = document.createElement('div');
     thirdSection.innerHTML = '<h3 style="margin-bottom: 1rem; color: var(--warn); padding-top: 1rem; border-top: 1px solid var(--border);">🥉 Duelo por el 3er Lugar</h3>';
@@ -312,13 +427,12 @@ function renderBracket() {
     bracketVisual.appendChild(thirdSection);
   }
 
-  // 4. RENDERIZAR ARENA DE REDENCIÓN (Con orden numérico y sala de espera)
   if (state.redemptionMatches.length > 0 || state.redemptionQueue.length > 0) {
     const redSection = document.createElement('div');
     redSection.innerHTML = `
       <div style="border-top: 1px solid var(--border); padding-top: 2rem;">
         <h3 style="color: var(--red); margin-bottom: 0.5rem;">🔥 Arena de Redención</h3>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">El ganador de cada duelo sobrevive y vuelve a la cola para enfrentar al siguiente perdedor.</p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">El ganador de cada duelo sobrevive y vuelve a la cola.</p>
       </div>
     `;
     
@@ -327,7 +441,6 @@ function renderBracket() {
     redemptionWrapper.style.flexWrap = 'wrap';
     redemptionWrapper.style.gap = '2rem';
 
-    // Mostrar los combates numerados
     state.redemptionMatches.forEach((match, index) => {
       const matchGroup = document.createElement('div');
       matchGroup.style.display = 'flex';
@@ -348,7 +461,6 @@ function renderBracket() {
     });
     redSection.appendChild(redemptionWrapper);
 
-    // Mostrar quién está esperando rival
     if (state.redemptionQueue.length > 0) {
       const queueDiv = document.createElement('div');
       queueDiv.style.marginTop = '1.5rem';
@@ -360,15 +472,14 @@ function renderBracket() {
       queueDiv.style.fontSize = '0.9rem';
       
       const waitingNames = state.redemptionQueue.map(p => p.nombre).join(', ');
-      queueDiv.innerHTML = `⏳ <strong>En sala de espera:</strong> ${waitingNames} (Esperando a que caiga otro perdedor)`;
+      queueDiv.innerHTML = `⏳ <strong>En sala de espera:</strong> ${waitingNames} (Esperando rival)`;
       redSection.appendChild(queueDiv);
     }
-
     bracketVisual.appendChild(redSection);
   }
 }
 
-// Función auxiliar: Modificada para permitir clics en partidas terminadas (para poder desmarcar)
+// ── UTILERÍA CONJUNTA ──
 function createMatchHTML(match, roundIndex, matchType) {
   const matchDiv = document.createElement('div');
   matchDiv.className = 'match-box';
@@ -376,7 +487,6 @@ function createMatchHTML(match, roundIndex, matchType) {
   const p1Class = match.winner && match.winner.id === (match.p1 && match.p1.id) ? 'winner' : (!match.p1 ? 'empty' : '');
   const p2Class = match.winner && match.winner.id === (match.p2 && match.p2.id) ? 'winner' : (!match.p2 ? 'empty' : '');
 
-  // Ahora permitimos hacer clic incluso si ya hay ganador
   const onclickP1 = match.p1 ? `onclick="setWinner(${roundIndex}, '${match.id}', 'p1', '${matchType}')"` : '';
   const onclickP2 = match.p2 ? `onclick="setWinner(${roundIndex}, '${match.id}', 'p2', '${matchType}')"` : '';
 
@@ -393,34 +503,45 @@ function createMatchHTML(match, roundIndex, matchType) {
   return matchDiv;
 }
 
-// Procesador central: Ahora incluye lógica para DESMARCAR ganadores
+// Procesador central: Maneja asignar y DESMARCAR para todos los tipos de torneos
 window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main') {
   let match, winnerPlayer, loserPlayer;
 
-  // Buscar el combate según el tipo
-  if (matchType === 'main') {
-    match = state.bracket[roundIndex].find(m => m.id.toString() === matchId.toString());
-  } else if (matchType === 'third') {
-    match = state.thirdPlaceMatch;
-  } else if (matchType === 'redemption') {
-    match = state.redemptionMatches.find(m => m.id.toString() === matchId.toString());
-  }
+  if (matchType === 'main') match = state.bracket[roundIndex].find(m => m.id.toString() === matchId.toString());
+  else if (matchType === 'third') match = state.thirdPlaceMatch;
+  else if (matchType === 'redemption') match = state.redemptionMatches.find(m => m.id.toString() === matchId.toString());
+  else if (matchType === 'roundrobin') match = state.rrMatches[roundIndex].find(m => m.id.toString() === matchId.toString());
 
   if (!match) return;
 
-  // --- LÓGICA DE DESMARCAR (UNDO) ---
+  // ── LÓGICA DE DESMARCAR (UNDO) ──
   if (match.winner) {
     if (match.winner.id !== match[playerSlot].id) {
       alert("Para cambiar de ganador, primero haz clic sobre el ganador actual para desmarcarlo.");
       return;
     }
 
-    // Comprobaciones de seguridad antes de desmarcar
+    if (matchType === 'roundrobin') {
+      const pWinner = match.winner;
+      const pLoser = match.winner.id === match.p1.id ? match.p2 : match.p1;
+      
+      const wStats = state.standings.find(p => p.id === pWinner.id);
+      const lStats = state.standings.find(p => p.id === pLoser.id);
+      
+      if (wStats) { wStats.wins -= 1; wStats.matchesPlayed -= 1; }
+      if (lStats) { lStats.losses -= 1; lStats.matchesPlayed -= 1; }
+      
+      match.winner = null;
+      sortStandings();
+      saveTournament();
+      renderRoundRobin();
+      return;
+    }
+
     if (matchType === 'main') {
       const isSemifinal = (roundIndex === state.bracket.length - 2);
       loserPlayer = match[playerSlot === 'p1' ? 'p2' : 'p1'];
 
-      // 1. Revisar si el ganador ya avanzó y peleó en la siguiente ronda
       if (match.nextMatchId !== null) {
         const nextRound = state.bracket[roundIndex + 1];
         const nextMatch = nextRound.find(m => m.id.toString() === match.nextMatchId.toString());
@@ -430,7 +551,6 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
         }
       }
 
-      // 2. Revisar si el perdedor ya peleó en redención o 3er lugar
       if (loserPlayer) {
         if (isSemifinal && state.thirdPlaceMatch && state.thirdPlaceMatch.winner) {
           alert("No puedes desmarcar. El perdedor de esta ronda ya peleó por el 3er lugar. Desmarca el 3er lugar primero.");
@@ -444,7 +564,6 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
         }
       }
 
-      // Proceder a desmarcar en Main
       match.winner = null;
       if (match.nextMatchId !== null) {
         const nextRound = state.bracket[roundIndex + 1];
@@ -452,7 +571,6 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
         if (nextMatch) nextMatch[match.nextMatchSlot] = null;
       }
       
-      // Limpiar al perdedor
       if (loserPlayer) {
         if (isSemifinal) {
           if (state.thirdPlaceMatch.p1 && state.thirdPlaceMatch.p1.id === loserPlayer.id) state.thirdPlaceMatch.p1 = null;
@@ -467,21 +585,19 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
               const rMatch = state.redemptionMatches[mIndex];
               const other = (rMatch.p1 && rMatch.p1.id === loserPlayer.id) ? rMatch.p2 : rMatch.p1;
               state.redemptionMatches.splice(mIndex, 1);
-              if (other) state.redemptionQueue.unshift(other); // Devolver al otro a la sala de espera
+              if (other) state.redemptionQueue.unshift(other);
             }
           }
         }
       }
-
     } else if (matchType === 'third') {
       match.winner = null;
     } else if (matchType === 'redemption') {
-      const winnerPlayer = match.winner;
-      const inQueueIdx = state.redemptionQueue.findIndex(p => p.id === winnerPlayer.id);
+      const pWinner = match.winner;
+      const inQueueIdx = state.redemptionQueue.findIndex(p => p.id === pWinner.id);
       
       if (inQueueIdx === -1) {
-        // Verificar si el ganador ya está metido en OTRO duelo de redención posterior
-        const inAnotherMatch = state.redemptionMatches.find(m => m.id !== match.id && ((m.p1 && m.p1.id === winnerPlayer.id) || (m.p2 && m.p2.id === winnerPlayer.id)));
+        const inAnotherMatch = state.redemptionMatches.find(m => m.id !== match.id && ((m.p1 && m.p1.id === pWinner.id) || (m.p2 && m.p2.id === pWinner.id)));
         if (inAnotherMatch) {
           alert("No puedes desmarcar. Este ganador ya avanzó a otro duelo de redención posterior.");
           return;
@@ -497,10 +613,25 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
     return;
   }
 
-  // --- LÓGICA NORMAL DE ASIGNAR GANADOR ---
+  // ── LÓGICA DE MARCAR GANADOR ──
   winnerPlayer = match[playerSlot];
   loserPlayer = match[playerSlot === 'p1' ? 'p2' : 'p1'];
   match.winner = winnerPlayer;
+
+  if (matchType === 'roundrobin') {
+    const wStats = state.standings.find(p => p.id === winnerPlayer.id);
+    const lStats = state.standings.find(p => p.id === loserPlayer.id);
+    
+    wStats.wins += 1;
+    wStats.matchesPlayed += 1;
+    lStats.losses += 1;
+    lStats.matchesPlayed += 1;
+
+    sortStandings();
+    saveTournament();
+    renderRoundRobin();
+    return;
+  }
 
   if (matchType === 'main') {
     if (match.nextMatchId !== null) {
@@ -517,88 +648,6 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
     addToRedemption(winnerPlayer);
   }
 
-  saveTournament();
-  renderBracket();
-}
-
-// Función auxiliar para crear la tarjeta visual de un combate
-function createMatchHTML(match, roundIndex, matchType) {
-  const matchDiv = document.createElement('div');
-  matchDiv.className = 'match-box';
-  
-  const p1Class = match.winner && match.winner.id === (match.p1 && match.p1.id) ? 'winner' : (!match.p1 ? 'empty' : '');
-  const p2Class = match.winner && match.winner.id === (match.p2 && match.p2.id) ? 'winner' : (!match.p2 ? 'empty' : '');
-
-  // Solo permitimos clic si el jugador existe y el combate NO tiene ganador aún
-  const onclickP1 = (!match.winner && match.p1) ? `onclick="setWinner(${roundIndex}, '${match.id}', 'p1', '${matchType}')"` : '';
-  const onclickP2 = (!match.winner && match.p2) ? `onclick="setWinner(${roundIndex}, '${match.id}', 'p2', '${matchType}')"` : '';
-
-  matchDiv.innerHTML = `
-    <div class="match-player ${p1Class}" ${onclickP1}>
-      <span>${match.p1 ? escapeHtml(match.p1.nombre) : 'TBD'}</span>
-      ${match.p1 ? `<small>Lvl ${match.p1.nivel}</small>` : ''}
-    </div>
-    <div class="match-player ${p2Class}" ${onclickP2}>
-      <span>${match.p2 ? escapeHtml(match.p2.nombre) : 'TBD'}</span>
-      ${match.p2 ? `<small>Lvl ${match.p2.nivel}</small>` : ''}
-    </div>
-  `;
-  return matchDiv;
-}
-
-// Procesador central de ganadores
-window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main') {
-  let match, winnerPlayer, loserPlayer;
-
-  if (matchType === 'main') {
-    const round = state.bracket[roundIndex];
-    // CORRECCIÓN: Usamos toString() para evitar que falle si uno es número y el otro texto
-    match = round.find(m => m.id.toString() === matchId.toString());
-    if (!match || match.winner) return;
-
-    winnerPlayer = match[playerSlot];
-    loserPlayer = match[playerSlot === 'p1' ? 'p2' : 'p1'];
-    
-    match.winner = winnerPlayer;
-
-    // Avanzar al ganador en la llave principal
-    if (match.nextMatchId !== null) {
-      const nextRound = state.bracket[roundIndex + 1];
-      const nextMatch = nextRound.find(m => m.id.toString() === match.nextMatchId.toString());
-      if (nextMatch) {
-        nextMatch[match.nextMatchSlot] = winnerPlayer;
-      }
-    }
-
-    // Gestionar al perdedor
-    if (loserPlayer) {
-      // Calculamos si es la ronda de Semifinales
-      const isSemifinal = (roundIndex === state.bracket.length - 2);
-      
-      if (isSemifinal) {
-        setupThirdPlace(loserPlayer);
-      } else {
-        addToRedemption(loserPlayer);
-      }
-    }
-  } 
-  else if (matchType === 'third') {
-    match = state.thirdPlaceMatch;
-    if (!match || match.winner) return;
-    match.winner = match[playerSlot];
-  } 
-  else if (matchType === 'redemption') {
-    match = state.redemptionMatches.find(m => m.id.toString() === matchId.toString());
-    if (!match || match.winner) return;
-    
-    winnerPlayer = match[playerSlot];
-    match.winner = winnerPlayer;
-    
-    // El ganador de la redención vuelve a la cola para seguir peleando
-    addToRedemption(winnerPlayer);
-  }
-
-  // Guardar y refrescar pantalla
   saveTournament();
   renderBracket();
 }
