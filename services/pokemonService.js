@@ -10,33 +10,25 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
     // Iniciamos una transacción para que si algo falla, no se hagan cambios parciales
     await connection.beginTransaction();
 
-    const [ownerRows] = await connection.execute(
-      'SELECT usuario_id FROM pokemon_atrapados WHERE pokemon_id = ? LIMIT 1',
-      [pokemonId]
-    );
-
-    const alreadyOwnedByAnother = ownerRows.some((row) => Number(row.usuario_id) !== Number(usuarioId));
-
-    if (alreadyOwnedByAnother) {
-      const successChance = 0.2;
-      const shouldGrant = Math.random() < successChance;
-      if (!shouldGrant) {
-        await connection.rollback();
-        return { success: false, duplicate: true };
-      }
-    }
-
+    // 1. Verificamos SI EL MISMO USUARIO ya tiene este Pokémon (Ignoramos al resto del servidor)
     const [existingRows] = await connection.execute(
-      'SELECT id FROM pokemon_atrapados WHERE usuario_id = ? AND pokemon_id = ?',
+      'SELECT id FROM pokemon_atrapados WHERE usuario_id = ? AND pokemon_id = ? LIMIT 1',
       [usuarioId, pokemonId]
     );
 
+    // 2. Lógica del 50/50 si ya lo tienes en tu Pokédex
     if (existingRows.length > 0) {
-      await connection.rollback();
-      return { success: false, duplicate: true };
+      // Math.random() genera un número entre 0 y 1. Si es menor a 0.5, falla (50% de probabilidad).
+      const successChance = Math.random();
+      
+      if (successChance < 0.5) {
+        await connection.rollback();
+        return { success: false, duplicate: true };
+      }
+      // Si el número es mayor o igual a 0.5, el código simplemente continúa hacia abajo y te lo guarda.
     }
 
-    // 1. Guardar el Pokémon en el inventario
+    // 3. Guardar el Pokémon en el inventario
     const nivelFinal = (nivel === undefined || nivel === null) ? 1 : nivel;
     const experienciaFinal = (experiencia === undefined || experiencia === null) ? 0 : experiencia;
 
@@ -45,7 +37,7 @@ async function registrarCaptura(usuarioId, pokemonId, nombrePokemon, nivel = 1, 
       [usuarioId, pokemonId, nombrePokemon, nivelFinal, experienciaFinal]
     );
 
-    // 2. Condición: Restar una pokébola SOLO si no viene de la incubadora
+    // 4. Condición: Restar una pokébola SOLO si no viene de la incubadora
     if (!esIncubadora) {
         await connection.execute(
             'UPDATE usuarios SET pokeballs = pokeballs - 1, ultima_captura = NOW() WHERE id = ?',

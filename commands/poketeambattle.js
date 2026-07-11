@@ -50,7 +50,7 @@ async function prepararEquipoBatalla(equipoBD) {
             def: Math.floor(getStat(dataApi, 'defense') * multNivel),
             spAtk: Math.floor(getStat(dataApi, 'special-attack') * multNivel),
             spDef: Math.floor(getStat(dataApi, 'special-defense') * multNivel),
-            vel: Math.floor(getStat(dataApi, 'speed') * multNivel),
+            vel: Math.floor(getStat(dataApi, 'speed')),
             tipos: dataApi.types.map(t => t.type.name),
             urlImagen: getImagen(dataApi)
         });

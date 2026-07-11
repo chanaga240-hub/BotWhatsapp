@@ -480,6 +480,44 @@ async function obtenerPokemonBebeAleatorio() {
   return idEncontrado;
 }
 
+/**
+ * Busca un Pokémon al azar filtrado por el tipo recibido.
+ * @param {string} tipo - Ejemplo: 'fire', 'water', 'normal'
+ */
+async function buscarPokemonPorTipo(tipo) {
+    try {
+        // 1. Obtener lista de Pokémon del tipo
+        const url = `https://pokeapi.co/api/v2/type/${tipo.toLowerCase()}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        // 2. Elegir uno al azar
+        const pokemonList = data.pokemon;
+        const randomEntry = pokemonList[Math.floor(Math.random() * pokemonList.length)];
+        const nombreAleatorio = randomEntry.pokemon.name;
+
+        // 3. Obtener la especie para llegar a su cadena evolutiva
+        const responseSpecies = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${nombreAleatorio}`);
+        const dataSpecies = await responseSpecies.json();
+        
+        // 4. Obtener la URL de la cadena evolutiva
+        const evolutionChainUrl = dataSpecies.evolution_chain.url;
+        const responseChain = await fetch(evolutionChainUrl);
+        const dataChain = await responseChain.json();
+
+        // 5. Extraer la primera fase (Siempre es la base de la cadena)
+        // dataChain.chain es el objeto raíz, su 'species.name' es la fase 1
+        const nombreFaseBase = dataChain.chain.species.name;
+
+        // 6. Consultar los datos completos del Pokémon base
+        return await consultarPokemon(nombreFaseBase);
+
+    } catch (error) {
+        console.error('Error en buscarPokemonPorTipo (filtrado evolutivo):', error);
+        return await consultarPokemon('pikachu'); 
+    }
+}
+
 // Asegúrate de agregar estas funciones al module.exports existente:
 module.exports = {
   consultarPokemon,
@@ -497,5 +535,6 @@ module.exports = {
   getEvolucionesInmediatas,
   getVariantesPokemon,
   obtenerPokemonBebeAleatorio,
-  fetchPokemon
+  fetchPokemon,
+  buscarPokemonPorTipo
 };

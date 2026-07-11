@@ -198,6 +198,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#expedicion') ||
         textoMinuscula.startsWith('#trivia') ||
         textoMinuscula === '#incubadora' ||
+        textoMinuscula.startsWith('#campo') ||
         textoMinuscula === '#pokehelp';
 
       if (!esComando) return;
@@ -338,6 +339,19 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#pokechallenge')) {
           const { handlePokechallenge } = require('../commands/pokechallenge');
           return await handlePokechallenge(msg, texto);
+        }
+
+        // ==========================================
+        // COMANDO: Campo y Captura de Campo
+        // ==========================================
+        if (textoMinuscula.startsWith('#campocapture')) {
+            const { handleCampoCapture } = require('../commands/campo');
+            return await handleCampoCapture(msg);
+        } 
+        else if (textoMinuscula.startsWith('#campo')) {
+            const { handleCampo } = require('../commands/campo');
+            // PASAMOS EL MENSAJE Y EL TEXTO COMPLETO
+            return await handleCampo(msg, texto || '');
         }
 
         // ==========================================

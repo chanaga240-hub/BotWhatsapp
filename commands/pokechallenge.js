@@ -154,7 +154,7 @@ async function handlePokechallenge(msg, texto) {
     def: Math.floor(getStat(pokeJugador, 'defense') * multNivelJugador),
     spAtk: Math.floor(getStat(pokeJugador, 'special-attack') * multNivelJugador),
     spDef: Math.floor(getStat(pokeJugador, 'special-defense') * multNivelJugador),
-    vel: Math.floor(getStat(pokeJugador, 'speed') * multNivelJugador),
+    vel: Math.floor(getStat(pokeJugador, 'speed')),
     tipos: pokeJugador.types.map(t => t.type.name)
   };
 

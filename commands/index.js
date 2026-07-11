@@ -5,6 +5,7 @@ const { handlePokebatle } = require('./pokebatle');
 const { handlePokeTrain } = require('./poketrain');
 const { handlePokehelp } = require('./pokehelp');
 const { handlePokeStats } = require('./pokestats');
+const { handleCampo } = require('./campo');
 
 const COOLDOWN_POKEMON_MS = 4000;
 const COOLDOWN_POKETEAM_MS = 4000;
@@ -16,6 +17,18 @@ async function handleCommand(msg) {
   
   const textoCompleto = msg.body.trim();
   const textoMinuscula = textoCompleto.toLowerCase();
+
+  if (textoMinuscula.startsWith('#campocapture')) {
+    const { handleCampoCapture } = require('./campo');
+    await handleCampoCapture(msg);
+    return;
+  }
+
+  if (textoMinuscula.startsWith('#campo')) {
+    console.log('[!] Comando de campo detectado.');
+    await handleCampo(msg, textoCompleto);
+    return;
+  }
 
   if (textoMinuscula.startsWith('#pokemon')) {
     if (isOnCooldown(chatId, 'pokemon', COOLDOWN_POKEMON_MS)) return;

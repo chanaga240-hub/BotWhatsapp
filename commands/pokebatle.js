@@ -182,7 +182,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       def: Math.floor(getStat(pokeJugador, 'defense') * multNivel1),
       spAtk: Math.floor(getStat(pokeJugador, 'special-attack') * multNivel1), 
       spDef: Math.floor(getStat(pokeJugador, 'special-defense') * multNivel1),
-      vel: Math.floor(getStat(pokeJugador, 'speed') * multNivel1),
+      vel: Math.floor(getStat(pokeJugador, 'speed')),
       tipos: pokeJugador.types.map(t => t.type.name) 
     };
 
@@ -194,7 +194,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
       def: Math.floor(getStat(pokeRival, 'defense') * multNivel2),
       spAtk: Math.floor(getStat(pokeRival, 'special-attack') * multNivel2), 
       spDef: Math.floor(getStat(pokeRival, 'special-defense') * multNivel2),
-      vel: Math.floor(getStat(pokeRival, 'speed') * multNivel2),
+      vel: Math.floor(getStat(pokeRival, 'speed')),
       tipos: pokeRival.types.map(t => t.type.name) 
     };
 
