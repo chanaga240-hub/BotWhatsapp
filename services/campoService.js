@@ -1,6 +1,6 @@
 const db = require('./database');
 
-const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison'];
+const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison','Ground'];
 
 function generarRecompensaAleatoria() {
     const rand = Math.random();
@@ -70,7 +70,7 @@ async function explorarCelda(usuarioId, coordenada) {
             [usuarioId]
         );
         
-        if (intentos[0].total >= 2) {
+        if (intentos[0].total >= 3) {
             await connection.rollback();
             return { error: 'limite_diario' };
         }

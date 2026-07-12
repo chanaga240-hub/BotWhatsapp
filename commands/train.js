@@ -6,11 +6,11 @@ async function handlePokeTrain(msg, nombrePokemon) {
   try {
 
     if (msg.from.endsWith('@g.us')) {
-      return await replyText(msg, '⛔ *Acceso Denegado*\nEl comando `#poketrain` solo se puede utilizar en chat privado (3112783473)');
+      return await replyText(msg, '⛔ *Acceso Denegado*\nEl comando `#train` solo se puede utilizar en chat privado (3112783473)');
     }
 
     const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
-    const nombreBuscado = (nombrePokemon || msg.body?.replace(/^#poketrain/i, '') || '').trim();
+    const nombreBuscado = (nombrePokemon || msg.body?.replace(/^#train/i, '') || '').trim();
 
     // ==========================================================
     // CASO NUEVO: ENTRENAMIENTO MASIVO (ALL)
@@ -26,7 +26,7 @@ async function handlePokeTrain(msg, nombrePokemon) {
 
       // 2. Validar nivel requerido (Nivel 5)
       if (nivelEntrenador < 5) {
-        return await replyText(msg, `⛔ *Acceso Denegado*\nEl comando \`#poketrain all\` es una técnica avanzada solo disponible para entrenadores de *Nivel 5 o superior*.\n(Tu nivel actual de entrenador es: ${nivelEntrenador})`);
+        return await replyText(msg, `⛔ *Acceso Denegado*\nEl comando \`#train all\` es una técnica avanzada solo disponible para entrenadores de *Nivel 5 o superior*.\n(Tu nivel actual de entrenador es: ${nivelEntrenador})`);
       }
 
       // 3. Ejecutar entrenamiento masivo
@@ -97,7 +97,7 @@ async function handlePokeTrain(msg, nombrePokemon) {
         mensajeLista += `\n🕒 *En Descanso (Cooldown):*\n${cooldownList}`;
       }
 
-      mensajeLista += `──────────────────────\n👉 _Entrena a uno usando:_ *#poketrain [nombre]*\n👉 _Entrena a todos:_ *#poketrain all* (Lv. 5+)`;
+      mensajeLista += `──────────────────────\n👉 _Entrena a uno usando:_ *#train [nombre]*\n👉 _Entrena a todos:_ *#train all* (Lv. 5+)`;
 
       return await replyText(msg, mensajeLista);
     }
@@ -147,8 +147,8 @@ async function handlePokeTrain(msg, nombrePokemon) {
 
     return await replyText(msg, '⚠️ No se pudo completar el entrenamiento.');
   } catch (error) {
-    console.error('Error en #poketrain:', error);
-    await replyText(msg, '⚠️ Hubo un error al procesar el comando #poketrain. Inténtalo de nuevo.');
+    console.error('Error en #train:', error);
+    await replyText(msg, '⚠️ Hubo un error al procesar el comando #train. Inténtalo de nuevo.');
   }
 }
 

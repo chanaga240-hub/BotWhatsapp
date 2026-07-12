@@ -1,5 +1,6 @@
 const { consultarPokemon, getVariantesPokemon, getNombreEspanol } = require('../services/pokeapi');
 const pokemonService = require('../services/pokemonService');
+const usuarioService = require('../services/usuarioService');
 
 // Función auxiliar para comparar las estadísticas (stats)
 function sonStatsIguales(statsA, statsB) {
@@ -27,11 +28,11 @@ async function handleMutar(msg, texto) {
   const data = await consultarPokemon(pokemon.pokemon_id);
   const todasLasVariantes = await getVariantesPokemon(data);
 
-  // Filtramos las formas no deseadas
+  // Filtramos solo las formas no permitidas (Mega y Primal siguen bloqueadas para #mutar)
+  // Se permite -gmax ahora para que entre en la lógica de comparación de stats.
   const variantesFiltradas = todasLasVariantes.filter(v => {
     const nombre = v.toLowerCase();
     return !nombre.includes('-mega') && 
-           !nombre.includes('-gmax') && 
            !nombre.includes('-primal');
   });
 
@@ -45,18 +46,23 @@ async function handleMutar(msg, texto) {
   if (!formaEncontrada) {
     return await msg.reply(
         `❌ Variante no encontrada para ${pokemon.nombre}.\n` +
-        `Opciones válidas: ${variantesFiltradas.join(', ')}`
+        `Opciones válidas: ${variantesFiltradas.map(v => v.replace(/-/g, ' ')).join(', ')}`
     );
   }
 
   // 3. Obtener los datos completos de la nueva forma seleccionada
   const dataNueva = await consultarPokemon(formaEncontrada);
 
-  // 4. NUEVA LÓGICA: Comparar stats y validar Punta ADN
+  // 4. LÓGICA: Comparar stats y validar Punta ADN
   const statsSonIguales = sonStatsIguales(data.stats, dataNueva.stats);
+  
+  // Obtenemos el inventario para verificar la punta_adn
+  const inventario = await usuarioService.obtenerInventarioCompleto(whatsappId);
+  const tieneADN = inventario && inventario.punta_adn > 0;
 
-  // Si las stats cambian (no es estético) y no tiene el ítem, bloqueamos la mutación
-  if (!statsSonIguales && !pokemon.punta_adn) {
+  // Si las stats cambian (es una forma que mejora o cambia stats) y no tiene el ítem, bloqueamos.
+  // Si las stats son iguales (GMax estético), permitimos la mutación gratis.
+  if (!statsSonIguales && !tieneADN) {
     return await msg.reply('🧬 La nueva variante altera las estadísticas de combate. Tu Pokémon no tiene el ADN preparado (Punta ADN necesaria).');
   }
 
@@ -64,7 +70,7 @@ async function handleMutar(msg, texto) {
   const exito = await pokemonService.cambiarVariantePokemon(pokemon.id, dataNueva.id, formaEncontrada);
 
   if (exito) {
-    // Mensaje dinámico dependiendo de si costó ADN o fue estético
+    // Si fue una mutación de combate, restamos el item (opcional, depende de tu implementación en service)
     const tipoMutacion = statsSonIguales ? '(Mutación Estética)' : '(Mutación de Combate)';
     await msg.reply(`✨ ¡Éxito! *${pokemon.nombre}* ha mutado a *${formaEncontrada}* ${tipoMutacion}.`);
   } else {

@@ -5,7 +5,7 @@ const campoService = require('../services/campoService');
 const db = require('../services/database');
 const { buscarPokemonPorTipo } = require('../services/pokeapi');
 
-const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno' };
+const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno', 'Ground':'Tierra' };
 global.campoPokemonPendiente = new Map();
 
 async function handleCampo(msg, textoCompleto) {
@@ -33,15 +33,30 @@ async function handleCampo(msg, textoCompleto) {
             const mapa = typeof campo.estructura === 'string' ? JSON.parse(campo.estructura) : campo.estructura;
             
             let celdasReclamadas = 0;
+            let disponiblesTexto = "*Disponibles:*\n"; // Iniciamos el texto de disponibles
+            
             for (const fila in mapa) {
+                let columnasLibres = [];
                 for (const col in mapa[fila]) {
-                    if (mapa[fila][col].estado === 'reclamado') celdasReclamadas++;
+                    if (mapa[fila][col].estado === 'reclamado') {
+                        celdasReclamadas++;
+                    } else {
+                        // Si no está reclamado, asumimos que está 'libre' y guardamos la columna
+                        columnasLibres.push(col);
+                    }
+                }
+                
+                // Si la fila tiene columnas libres, la agregamos al texto con el formato deseado
+                if (columnasLibres.length > 0) {
+                    disponiblesTexto += `${fila} (${columnasLibres.join(',')})\n`;
                 }
             }
 
             const imagePath = path.join(__dirname, '..', 'assets', 'Image_Helpers', `Campo_${tipoFormateado}.jpg`);
             let media = fs.existsSync(imagePath) ? MessageMedia.fromFilePath(imagePath) : null;
-            const caption = `🏕️ *Campo:* ${tipoFormateado}\n🔍 *Celdas revisadas:* ${celdasReclamadas}/28\n\nUsa #campo A-1 para explorar una celda.`;
+            
+            // Incorporamos el texto de celdas disponibles al mensaje (caption)
+            const caption = `🏕️ *Campo:* ${tipoFormateado}\n🔍 *Celdas revisadas:* ${celdasReclamadas}/28\n\n${disponiblesTexto}\nUsa #campo A-1 para explorar una celda.`;
 
             return media ? await msg.reply(media, undefined, { caption }) : await msg.reply(caption);
         } else if (!coordenada && textoLimpio !== '') {
@@ -54,7 +69,7 @@ async function handleCampo(msg, textoCompleto) {
         // 3. Manejo EXPLÍCITO de TODOS los errores
         if (resultado.error) {
             const mensajesError = {
-                'limite_diario': '🛑 Has alcanzado el límite de 2 revisiones hoy.',
+                'limite_diario': '🛑 Has alcanzado el límite de 3 revisiones hoy.',
                 'ya_reclamado': '❌ Este arbusto ya fue revisado por alguien más.',
                 'coordenada_invalida': '⚠️ Coordenada inválida. Usa formato A-1.',
                 'no_generado': '⚠️ El campo de hoy aún no ha sido generado. Usa #campo primero.',

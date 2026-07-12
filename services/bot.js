@@ -155,7 +155,7 @@ class BotManager extends EventEmitter {
       this.qrDataUrl = null;
       this.setStatus('ready');
       this.log('Bot listo y escuchando comandos 24/7.');
-      this.log('Comandos: #pokeregister, #pokemon, #pokesalvaje, #pokegive, #capture, #poketeam, #pokebatle, #pokeaccept, #poketrain, #pokestats, #pokehelp');
+      this.log('Comandos: #pokeregister, #pokemon, #pokesalvaje, #pokegive, #capture, #poketeam, #battle, #accept, #train, #stats, #help');
       this.iniciarCronSalvajes();
     });
 
@@ -177,13 +177,13 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#pokedex') ||  
         textoMinuscula.startsWith('#pokemon') ||
         textoMinuscula.startsWith('#poketeam') ||
-        textoMinuscula.startsWith('#pokebatle') || 
-        textoMinuscula.startsWith('#poketeambattle') ||
-        textoMinuscula.startsWith('#pokeaccept') ||
-        textoMinuscula.startsWith('#poketrain') ||
-        textoMinuscula === '#pokedaily' ||
-        textoMinuscula === '#pokejob' ||
-        textoMinuscula.startsWith('#pokestats') ||
+        textoMinuscula.startsWith('#battle') || 
+        textoMinuscula.startsWith('#teambattle') ||
+        textoMinuscula.startsWith('#accept') ||
+        textoMinuscula.startsWith('#train') ||
+        textoMinuscula === '#daily' ||
+        textoMinuscula === '#job' ||
+        textoMinuscula.startsWith('#stats') ||
         textoMinuscula.startsWith('#pokemonstats') ||
         textoMinuscula === '#shop' ||
         textoMinuscula.startsWith('#buy') ||
@@ -191,7 +191,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#inventario') ||
         textoMinuscula.startsWith('#use') ||
         textoMinuscula.startsWith('#pokeevolucion') ||
-        textoMinuscula.startsWith('#pokechallenge') ||
+        textoMinuscula.startsWith('#challenge') ||
         textoMinuscula.startsWith('#pokevariantes') ||
         textoMinuscula.startsWith('#ranking') ||
         textoMinuscula.startsWith('#mutar') ||
@@ -199,7 +199,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#trivia') ||
         textoMinuscula === '#incubadora' ||
         textoMinuscula.startsWith('#campo') ||
-        textoMinuscula === '#pokehelp';
+        textoMinuscula === '#help';
 
       if (!esComando) return;
 
@@ -238,10 +238,10 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #pokejob
+        // COMANDO: #job
         // ==========================================
-        if (textoMinuscula === '#pokejob') {
-          const { handlePokeJob } = require('../commands/pokejob');
+        if (textoMinuscula === '#job') {
+          const { handlePokeJob } = require('../commands/job');
           return await handlePokeJob(msg);
         }
 
@@ -286,10 +286,10 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #poketeambattle
+        // COMANDO: #teambattle
         // ==========================================
-        if (textoMinuscula.startsWith('#poketeambattle')) {
-          const { handlePoketeamBattle } = require('../commands/poketeambattle');
+        if (textoMinuscula.startsWith('#teambattle')) {
+          const { handlePoketeamBattle } = require('../commands/teambattle');
           return await handlePoketeamBattle(msg, texto);
         }
 
@@ -334,10 +334,10 @@ class BotManager extends EventEmitter {
         }
         
         // ==========================================
-        // COMANDO: #pokechallenge (PvE)
+        // COMANDO: #challenge (PvE)
         // ==========================================
-        if (textoMinuscula.startsWith('#pokechallenge')) {
-          const { handlePokechallenge } = require('../commands/pokechallenge');
+        if (textoMinuscula.startsWith('#challenge')) {
+          const { handlePokechallenge } = require('../commands/challenge');
           return await handlePokechallenge(msg, texto);
         }
 
@@ -494,9 +494,9 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #pokedaily
+        // COMANDO: #daily
         // ==========================================
-        if (textoMinuscula === '#pokedaily') {
+        if (textoMinuscula === '#daily') {
           try {
             const resultado = await usuarioService.reclamarDaily(usuario.id);
 
@@ -510,7 +510,7 @@ class BotManager extends EventEmitter {
               return await msg.reply(`⏳ *¡Ya reclamaste tu recompensa!* ⏳\n\nDebes esperar *${horas} horas y ${minutos} minutos* para poder volver a reclamar tus Pokéballs.`);
             }
           } catch (err) {
-            this.log(`Error en #pokedaily: ${err.message}`, 'error');
+            this.log(`Error en #daily: ${err.message}`, 'error');
             return await msg.reply('⚠️ Hubo un error al procesar tu regalo diario.');
           }
         }
@@ -687,14 +687,14 @@ class BotManager extends EventEmitter {
         // ==========================================
         // INTERCEPCIÓN DE BATALLAS POR POKEDEX
         // ==========================================
-        if (textoMinuscula.startsWith('#pokebatle')) {
-          const { handlePokebatle } = require('../commands/pokebatle');
+        if (textoMinuscula.startsWith('#battle')) {
+          const { handlePokebatle } = require('../commands/battle');
           return await handlePokebatle(msg, texto);
         }
 
-        if (textoMinuscula.startsWith('#pokeaccept')) {
-          const { handlePokeaccept } = require('../commands/pokebatle');
-          const argumento = texto.slice('#pokeaccept'.length).trim();
+        if (textoMinuscula.startsWith('#accept')) {
+          const { handlePokeaccept } = require('../commands/battle');
+          const argumento = texto.slice('#accept'.length).trim();
           return await handlePokeaccept(msg, argumento);
         }
 

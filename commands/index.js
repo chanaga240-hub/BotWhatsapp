@@ -1,9 +1,9 @@
 const { isOnCooldown, setCooldown } = require('../services/cooldown');
 const { handlePokemon } = require('./pokemon');
 const { handlePoketeam } = require('./poketeam');
-const { handlePokebatle } = require('./pokebatle');
-const { handlePokeTrain } = require('./poketrain');
-const { handlePokehelp } = require('./pokehelp');
+const { handlePokebatle } = require('./battle');
+const { handlePokeTrain } = require('./train');
+const { handlePokehelp } = require('./help');
 const { handlePokeStats } = require('./pokestats');
 const { handleCampo } = require('./campo');
 
@@ -72,8 +72,8 @@ async function handleCommand(msg) {
     return;
   }
 
-  if (textoMinuscula.startsWith('#poketrain')) {
-    // Extraemos lo que venga después de '#poketrain' (puede ser un nombre o vacío)
+  if (textoMinuscula.startsWith('#train')) {
+    // Extraemos lo que venga después de '#train' (puede ser un nombre o vacío)
     const nombrePokemon = textoCompleto.substring(10).trim();
 
     console.log('[!] Comando de entrenamiento detectado.');
@@ -83,7 +83,7 @@ async function handleCommand(msg) {
     return;
   }
 
-  if (textoMinuscula.startsWith('#pokestats') || textoMinuscula.startsWith('#pokestas')) {
+  if (textoMinuscula.startsWith('#stats') || textoMinuscula.startsWith('#pokestas')) {
     let mentionIds = msg.mentionedIds || [];
     if (mentionIds.length === 0 && typeof msg.getMentions === 'function') {
       const mentions = await msg.getMentions();
@@ -98,8 +98,8 @@ async function handleCommand(msg) {
       const targetId = mentionIds[0].split('@')[0].split(':')[0];
       await handlePokeStats(msg, targetId);
     } 
-    // Para #pokestats: mención opcional
-    else if (textoMinuscula.startsWith('#pokestats')) {
+    // Para #stats: mención opcional
+    else if (textoMinuscula.startsWith('#stats')) {
       let targetId = null;
       if (mentionIds.length > 0) {
         targetId = mentionIds[0].split('@')[0].split(':')[0];
@@ -109,7 +109,7 @@ async function handleCommand(msg) {
     return;
   }
 
-  if (textoMinuscula === '#pokehelp') {
+  if (textoMinuscula === '#help') {
     console.log('[!] Comando de ayuda detectado.');
     await handlePokehelp(msg);
   }

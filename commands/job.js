@@ -43,7 +43,7 @@ async function handlePokeJob(msg) {
     return await replyText(msg, '⚠️ Hubo un error al procesar tu paga. Intenta más tarde.');
 
   } catch (error) {
-    console.error('Error en #pokejob:', error);
+    console.error('Error en #job:', error);
     await replyText(msg, '⚠️ Hubo un error inesperado al ejecutar el comando.');
   }
 }

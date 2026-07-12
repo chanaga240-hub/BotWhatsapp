@@ -217,11 +217,11 @@ async function ejecutarMatchup(battleId, msgContext) {
 
         cronica += `\n⚠️ *LA BATALLA CONTINÚA* ⚠️\n`;
         if (p1Caido && p2Caido) {
-            cronica += `Ambos deben elegir a su siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
+            cronica += `Ambos deben elegir a su siguiente Pokémon.\n👉 Usa: *#teambattle switch [numero o nombre]*`;
         } else if (p1Caido) {
-            cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
+            cronica += `*${battle.p1.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#teambattle switch [numero o nombre]*`;
         } else if (p2Caido) {
-            cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#poketeambattle switch [numero o nombre]*`;
+            cronica += `*${battle.p2.name}*, elige a tu siguiente Pokémon.\n👉 Usa: *#teambattle switch [numero o nombre]*`;
         }
         
         // 2. Se elimina la lógica de fatiga que estaba oculta aquí abajo
@@ -253,7 +253,7 @@ async function handlePoketeamBattle(msg, texto) {
     // ==========================================
     if (args.length === 3 && args[1].startsWith('@')) {
         const idRival = msg.mentionedIds[0]?.split('@')[0].split(':')[0];
-        if (!idRival) return await msg.reply('❌ Debes mencionar a un rival. Ej: #poketeambattle @Marco 1');
+        if (!idRival) return await msg.reply('❌ Debes mencionar a un rival. Ej: #teambattle @Marco 1');
         if (idRival === remitenteId) return await msg.reply('❌ No puedes retarte a ti mismo.');
 
         // --- NUEVA VALIDACIÓN: Verificar si el rival (o tú) ya están en batalla ---
@@ -302,7 +302,7 @@ async function handlePoketeamBattle(msg, texto) {
             equipoRetadorBD: equipoRetador
         });
 
-        return await msg.reply(`⚔️ *¡DESAFÍO DE EQUIPOS LANZADO!* ⚔️\n\n👤 *${getNombre(msg)}* reta a una batalla por equipos.\n🔥 Abrirá el combate con su Posición ${jerarquia}.\n\nPara aceptar el duelo, el rival debe usar:\n👉 *#poketeambattle accept [posicion_del_1_al_6]*`);
+        return await msg.reply(`⚔️ *¡DESAFÍO DE EQUIPOS LANZADO!* ⚔️\n\n👤 *${getNombre(msg)}* reta a una batalla por equipos.\n🔥 Abrirá el combate con su Posición ${jerarquia}.\n\nPara aceptar el duelo, el rival debe usar:\n👉 *#teambattle accept [posicion_del_1_al_6]*`);
     }
 
     // ==========================================

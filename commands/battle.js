@@ -96,7 +96,7 @@ async function handlePokebatle(msg, argsText = '') {
       `👤 *${nombreRetadorText}* ha retado a *${nombreRivalText}* a un combate Pokémon.\n` +
       `🔥 El retador enviará a: *${pokeInventarioRetador.nombre}* (Nivel ${pokeInventarioRetador.nivel})\n\n` +
       `Toque responder usando:\n` +
-      `👉 *#pokeaccept [nombre_de_tu_pokemon]*`
+      `👉 *#accept [nombre_de_tu_pokemon]*`
     );
 
   } catch (error) {
@@ -369,7 +369,7 @@ async function handlePokeaccept(msg, pokemonRivalNombre = '') {
     }
 
   } catch (error) {
-    console.error('Error procesando aceptación de pokebatle:', error);
+    console.error('Error procesando aceptación de pokebatlle:', error);
   }
 }
 module.exports = { handlePokebatle, handlePokeaccept };

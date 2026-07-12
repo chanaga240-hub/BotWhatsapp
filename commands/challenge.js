@@ -9,7 +9,7 @@ const npcDesafiosPendientes = new Map();
 
 async function handlePokechallenge(msg, texto) {
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
-  const nombrePokemon = texto.replace('#pokechallenge', '').trim();
+  const nombrePokemon = texto.replace('#challenge', '').trim();
 
   // 1. OBTENER DATOS DEL USUARIO
   const [userRows] = await db.execute('SELECT * FROM usuarios WHERE whatsapp_id = ?', [whatsappId]);
@@ -31,7 +31,7 @@ async function handlePokechallenge(msg, texto) {
         `💬 _"${desafioExistente.npcDialogo}"_\n\n` +
         `🔥 Su *${desafioExistente.pokemonNombre}* (Nivel ${desafioExistente.pokemonNivel}) está listo para pelear.\n\n` +
         `Para aceptar el duelo, responde usando:\n` +
-        `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
+        `👉 *#challenge [nombre_de_tu_pokemon]*`;
 
       try {
         const media = MessageMedia.fromFilePath(imgRivalDesafio);
@@ -94,7 +94,7 @@ async function handlePokechallenge(msg, texto) {
       `💬 _"${npc.dialog}"_\n\n` +
       `🔥 Ha elegido a *${pokeDataNPC.name}* (Nivel ${nivelNPC}).\n\n` +
       `Para aceptar el duelo, responde usando:\n` +
-      `👉 *#pokechallenge [nombre_de_tu_pokemon]*`;
+      `👉 *#challenge [nombre_de_tu_pokemon]*`;
 
     try {
       const media = MessageMedia.fromFilePath(imgRivalDesafio);
@@ -109,7 +109,7 @@ async function handlePokechallenge(msg, texto) {
   // FASE 2: RESOLVER EL COMBATE
   // ==========================================
   if (!npcDesafiosPendientes.has(whatsappId)) {
-    return await msg.reply('❌ No tienes ningún desafío pendiente contra un NPC. Usa `#pokechallenge` (solo) para buscar un rival.');
+    return await msg.reply('❌ No tienes ningún desafío pendiente contra un NPC. Usa `#challenge` (solo) para buscar un rival.');
   }
 
   const desafio = npcDesafiosPendientes.get(whatsappId);

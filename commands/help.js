@@ -4,7 +4,7 @@ const path = require('path');
 
 const { replyText, replyWithImage } = require('../services/reply');
 
-const HELP_IMAGE_PATH = path.join(process.cwd(), 'public', 'pokehelp.png');
+const HELP_IMAGE_PATH = path.join(process.cwd(), 'public', 'help.png');
 const HELP_IMAGE_CAPTION = '📋 Guía de comandos Pokémon';
 
 const AYUDA =
@@ -33,7 +33,7 @@ const AYUDA =
 
   `🔮 *EXTRAS Y UTILIDADES*\r\n` +
   `• *#poketeam* - Genera un equipo aleatorio de 6 Pokémon (Stickers).\r\n` +
-  `• *#pokehelp* - Muestra esta guía de comandos.\r\n\r\n` +
+  `• *#help* - Muestra esta guía de comandos.\r\n\r\n` +
 
   `───────────────────────\r\n` +
   `👑 *COMANDOS ADMIN*\r\n` +

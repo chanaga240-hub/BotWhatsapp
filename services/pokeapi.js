@@ -9,6 +9,7 @@ const pokemonCacheByKey = new Map();
 const pokemonCacheById = new Map();
 
 async function getCachedData(queryKey) {
+  // Si está en la memoria RAM, lo devolvemos
   if (pokemonCacheByKey.has(queryKey)) {
     return pokemonCacheByKey.get(queryKey);
   }
@@ -23,8 +24,10 @@ async function getCachedData(queryKey) {
 
     const [rows] = await db.execute(query, params);
 
-    if (rows.length) {
+    if (rows.length > 0) {
+      // Intentamos parsear. Si el JSON está corrupto, lanzará un error y pasaremos al catch
       const data = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
+      
       pokemonCacheByKey.set(queryKey, data);
       if (data?.id) {
         pokemonCacheById.set(String(data.id), data);
@@ -32,10 +35,12 @@ async function getCachedData(queryKey) {
       return data;
     }
   } catch (err) {
-    console.warn('Error consultando caché en DB:', err.message);
+    // Si falla el parseo o la DB, NO lanzamos error, simplemente retornamos null
+    // para que la función fetchPokemon continúe hacia la API.
+    console.warn('Caché no disponible o corrupto, consultando API...', err.message);
   }
 
-  return null;
+  return null; // Retorna null si no se encontró en DB
 }
 
 async function cacheJsonResponse(data, queryKey, fallbackName = null, fallbackId = null) {
@@ -391,46 +396,47 @@ async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
 // --- FUNCIONES PARA EVOLUCION ---
 
 async function getEvolucionesInmediatas(pokemon) {
-  // 1. Obtenemos los datos de la especie para encontrar la URL de la cadena
-  const speciesData = await fetchJson(pokemon.species.url);
-  const chainData = await fetchJson(speciesData.evolution_chain.url);
-
-  // IMPORTANTE: Usamos el nombre de la especie, no el del Pokémon actual.
-  // Así evitamos errores si el jugador consultó "lechonk-female".
-  const targetSpeciesName = speciesData.name;
-
-  // 2. Función recursiva para buscar la especie en la cadena
-  function buscarEvoluciones(currentChain, targetName) {
-    if (currentChain.species.name === targetName) {
-      return currentChain.evolves_to.map(evo => evo.species.name);
-    }
-    for (const next of currentChain.evolves_to) {
-      const found = buscarEvoluciones(next, targetName);
-      if (found.length > 0) return found;
-    }
+  if (!pokemon || !pokemon.species || !pokemon.species.url) {
     return [];
   }
 
-  const especiesEvolucion = buscarEvoluciones(chainData.chain, targetSpeciesName);
+  try {
+    // 1. Obtener datos de especie usando la URL directa (y caché interna)
+    const speciesData = await fetchJson(pokemon.species.url);
+    
+    if (!speciesData?.evolution_chain?.url) return [];
 
-  // 3. Consultamos las "varieties" (formas/géneros) de cada especie encontrada
-  const evolucionesCompletas = [];
-  
-  for (const especie of especiesEvolucion) {
-    try {
-      const evoSpeciesData = await fetchJson(`https://pokeapi.co/api/v2/pokemon-species/${especie}`);
+    // 2. Obtener la cadena evolutiva
+    const chainData = await fetchJson(speciesData.evolution_chain.url);
+
+    // 3. Buscar el nombre de la especie actual en la cadena
+    const targetSpeciesName = speciesData.name;
+
+    function buscarEvoluciones(currentChain, targetName) {
+      if (!currentChain) return [];
       
-      // Extraemos el nombre exacto de la API para cada variedad
-      for (const variedad of evoSpeciesData.varieties) {
-        evolucionesCompletas.push(variedad.pokemon.name);
+      // Si encontramos la especie, devolvemos los nombres de lo que evoluciona
+      if (currentChain.species.name === targetName) {
+        return currentChain.evolves_to.map(evo => evo.species.name);
       }
-    } catch (err) {
-      // Si falla la consulta extra, dejamos el nombre base como respaldo
-      evolucionesCompletas.push(especie);
+      
+      // Si no, buscamos en las siguientes ramas
+      for (const next of currentChain.evolves_to) {
+        const found = buscarEvoluciones(next, targetName);
+        if (found.length > 0) return found;
+      }
+      return [];
     }
-  }
 
-  return evolucionesCompletas;
+    const especiesEvolucion = buscarEvoluciones(chainData.chain, targetSpeciesName);
+
+    // 4. Mapear a nombres de Pokémon (para evitar IDs de especie cuando se quiere el Pokémon)
+    return especiesEvolucion; 
+
+  } catch (err) {
+    console.error('Error en getEvolucionesInmediatas:', err);
+    return [];
+  }
 }
 
 async function getVariantesPokemon(pokemon) {
