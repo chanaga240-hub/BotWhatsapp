@@ -5,7 +5,7 @@ const campoService = require('../services/campoService');
 const db = require('../services/database');
 const { buscarPokemonPorTipo } = require('../services/pokeapi');
 
-const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno', 'Ground':'Tierra', 'Ghost':'Fantasma' };
+const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno', 'Ground':'Tierra', 'Ghost':'Fantasma', 'Flying':'Volador' };
 global.campoPokemonPendiente = new Map();
 
 async function handleCampo(msg, textoCompleto) {
