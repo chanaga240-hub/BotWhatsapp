@@ -1,6 +1,6 @@
 const db = require('./database');
 
-const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison','Ground'];
+const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison','Ground', 'Ghost'];
 
 function generarRecompensaAleatoria() {
     const rand = Math.random();
@@ -36,7 +36,24 @@ async function obtenerOCrearCampoHoy() {
     const campo = await obtenerCampoHoy();
     if (campo) return { campo, esNuevo: false };
 
-    const nuevoTipo = TIPOS_HABILITADOS[Math.floor(Math.random() * TIPOS_HABILITADOS.length)];
+    // 1. Consultar los últimos 3 campos generados
+    const [ultimosCampos] = await db.execute(
+        'SELECT tipo_campo FROM RegistroCampos ORDER BY id DESC LIMIT 3'
+    );
+    
+    // 2. Extraer los nombres de esos tipos recientes
+    const tiposRecientes = ultimosCampos.map(c => c.tipo_campo);
+
+    // 3. Filtrar la lista principal para excluir los recientes
+    let tiposDisponibles = TIPOS_HABILITADOS.filter(tipo => !tiposRecientes.includes(tipo));
+
+    // Fallback de seguridad: si por alguna extraña razón se acaban los tipos, usamos todos
+    if (tiposDisponibles.length === 0) {
+        tiposDisponibles = TIPOS_HABILITADOS;
+    }
+
+    // 4. Elegir aleatoriamente entre los tipos disponibles filtrados
+    const nuevoTipo = tiposDisponibles[Math.floor(Math.random() * tiposDisponibles.length)];
     const nuevaEstructura = generarEstructuraCampo();
     
     await db.execute(
