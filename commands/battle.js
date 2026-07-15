@@ -20,14 +20,15 @@ function getNombreRemitente(msg) {
 
 async function handlePokebatle(msg, argsText = '') {
   try {
-    const chat = await msg.getChat();
-    if (!chat.isGroup) {
+    // Solución: Verificamos directamente el ID del chat sin llamar a getChat()
+    const isGroup = msg.from.endsWith('@g.us');
+    if (!isGroup) {
       return await msg.reply('❌ Los desafíos de batalla solo se pueden organizar dentro de grupos.');
     }
 
     const menciones = msg.mentionedIds || [];
     if (menciones.length === 0) {
-      return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.\n👉 Ejemplo: `#pokebatle @Marco Pikachu`');
+      return await msg.reply('❌ Debes mencionar (`@`) a un entrenador del grupo para retarlo.\n👉 Ejemplo: `#battle @Marco Pikachu`');
     }
 
     const idRetador = (msg.author || msg.from).split('@')[0].split(':')[0];
@@ -45,12 +46,13 @@ async function handlePokebatle(msg, argsText = '') {
       return await msg.reply('❌ No puedes retarte a una batalla a ti mismo.');
     }
 
-    let textoLimpio = msg.body.replace(/^#pokebatle/i, '').trim();
-    textoLimpio = textoLimpio.replace(/@\d+/g, '').trim();
+    // Solución: Usamos argsText (ya sin espacios al inicio) y borramos cualquier tipo de mención
+    let textoLimpio = (argsText || msg.body).trim().replace(/^#(battle|pokebatle)/i, '').trim();
+    textoLimpio = textoLimpio.replace(/@\S+/g, '').trim();
 
     const nombrePokemonBuscado = textoLimpio;
     if (!nombrePokemonBuscado) {
-      return await msg.reply('❌ Especifica con qué Pokémon de tu Pokédex vas a pelear.\n👉 Ejemplo: `#pokebatle @User Pikachu`');
+      return await msg.reply('❌ Especifica con qué Pokémon de tu Pokédex vas a pelear.\n👉 Ejemplo: `#battle @User Pikachu`');
     }
 
     const pokeInventarioRetador = await pokemonService.verificarYObtenerPokemon(idRetador, nombrePokemonBuscado);
@@ -100,7 +102,7 @@ async function handlePokebatle(msg, argsText = '') {
     );
 
   } catch (error) {
-    console.error('Error en el inicio de pokebatle:', error);
+    console.error('Error en el inicio de battle:', error);
   }
 }
 

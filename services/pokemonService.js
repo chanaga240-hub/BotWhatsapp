@@ -913,6 +913,38 @@ async function aplicarMegaEvolucion(whatsappId, pokemonAtrapadoId, nuevoPokemonI
   }
 }
 
+// Añade esta función en pokemonService.js
+async function procesarSacrificio(whatsappId, idsPokemones, botellasXp) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Eliminar los 3 pokemones de la tabla
+    for (const id of idsPokemones) {
+      await connection.execute('DELETE FROM pokemon_atrapados WHERE id = ?', [id]);
+    }
+
+    // 2. Otorgar recompensas en el inventario: +1 Huevo y +N Botellas
+    // Utilizamos el JOIN con usuarios como en otras funciones (ej. aplicarPuntaAdn)
+    await connection.execute(
+      `UPDATE inventario i 
+       JOIN usuarios u ON i.usuario_id = u.id 
+       SET i.egg = i.egg + 1, i.pocion_xp_small = i.pocion_xp_small + ? 
+       WHERE u.whatsapp_id = ?`,
+      [botellasXp, whatsappId]
+    );
+
+    await connection.commit();
+    return { success: true };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en procesarSacrificio:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   eliminarHuevoIncubadora,
@@ -939,5 +971,6 @@ module.exports = {
   obtenerExpediciones,
   usarHuevoIncubadora,
   revisarIncubadora,
-  aplicarMegaEvolucion
+  aplicarMegaEvolucion,
+  procesarSacrificio
 };

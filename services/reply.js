@@ -45,15 +45,17 @@ async function getMediaFromUrlWithCache(imagePath, filename = 'pokemon.png') {
   return fetchImageMedia(imagePath, filename);
 }
 
-async function sendSticker(chat, imagePath, stickerName, quoteId) {
+// Cambiamos 'chat' por 'msg'
+async function sendSticker(msg, imagePath, stickerName, quoteId) {
   const safeName = String(stickerName || 'pokemon').substring(0, 30);
   const media = await fetchImageMedia(imagePath, `${safeName}.png`);
   if (!media) return false;
 
   try {
-    await chat.sendMessage(media, {
+    await msg.reply(media, undefined, {
       sendMediaAsSticker: true,
       stickerName: safeName,
+      stickerAuthor: 'PokéBot',
       quotedMessageId: quoteId,
     });
     return true;
@@ -75,38 +77,45 @@ async function replyText(msg, text) {
   return msg.reply(text);
 }
 
-async function replyWithSticker(msg, texto, imagePath, stickerName = 'pokemon') {
-  const isRealMessage = msg && typeof msg.reply === 'function';
+// Dentro de reply.js
+async function replyWithSticker(msg, mensaje, imagePath, stickerName) {
+  try {
+    // 1. Obtener media (usando tu función de descarga/caché existente)
+    const media = await getMediaFromUrlWithCache(imagePath); // O MessageMedia.fromFilePath(imagePath)
+    
+    if (!media) {
+      // Si falla la imagen, enviamos al menos el texto
+      return await msg.reply(mensaje);
+    }
 
-  if (isRealMessage) {
-    await msg.reply(texto);
-  } else {
-    const bot = require('./bot'); 
-    const chatId = msg.id && msg.id.remote ? msg.id.remote : msg;
-    await bot.client.sendMessage(chatId, texto);
+    // 2. Enviar con caption (el texto aparecerá encima del sticker)
+    await msg.reply(media, undefined, {
+      sendMediaAsSticker: true,
+      stickerName: stickerName,
+      stickerAuthor: 'PokéBot',
+      caption: mensaje, // <--- ESTO ES LO QUE HACE QUE EL TEXTO ACOMPAÑE AL STICKER
+      quotedMessageId: msg.id._serialized
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error enviando sticker:', error);
+    return false;
   }
-
-  if (!imagePath) return;
-
-  const chatId = isRealMessage ? msg.id.remote : (msg.id ? msg.id.remote : msg);
-  const bot = require('./bot');
-  const chat = await bot.client.getChatById(chatId);
-  
-  await sendSticker(chat, imagePath, stickerName, isRealMessage ? msg.id._serialized : null);
 }
 
 async function replyWithLabeledStickers(msg, text, labeledItems, textFirst = false) {
-  const chat = await msg.getChat();
   const quoteId = msg.id._serialized;
 
   const sendStickers = async () => {
     for (const item of labeledItems) {
       if (item.label) {
-        await chat.sendMessage(item.label, { quotedMessageId: quoteId });
+        // Usamos msg.reply directamente
+        await msg.reply(item.label, undefined, { quotedMessageId: quoteId });
       }
-      if (item.url) { 
-        // item.url ahora contiene la ruta local del disco duro
-        await sendSticker(chat, item.url, item.stickerName || 'pokemon', quoteId);
+      if (item.url) {
+        // Pasamos null o eliminamos el argumento 'chat' de tu función sendSticker
+        await sendSticker(msg, item.url, item.stickerName || 'pokemon', quoteId);
       }
     }
   };
@@ -129,10 +138,12 @@ async function replyWithImage(msg, imagePath, caption = '') {
 
   try {
     const media = MessageMedia.fromFilePath(imagePath);
-    const chat = await msg.getChat();
+    
     const options = { quotedMessageId: msg.id._serialized };
     if (caption) options.caption = caption;
-    return await chat.sendMessage(media, options);
+
+    return await msg.reply(media, undefined, options);
+    
   } catch (error) {
     console.error('Error al enviar imagen de ayuda:', error);
     return await replyText(msg, caption || 'No se pudo enviar la imagen de ayuda.');
@@ -171,10 +182,7 @@ async function replyWithAudio(msg, audioUrl) {
     const base64Data = mp3Buffer.toString('base64');
 
     const media = new MessageMedia('audio/mp3', base64Data, 'grito.mp3');
-    const chat = await msg.getChat();
-    await chat.sendMessage(media, {
-      quotedMessageId: msg.id._serialized
-    });
+    await msg.reply(media, undefined, { quotedMessageId: msg.id._serialized });
 
     console.log(`[Bot] ¡Grito convertido por fuerza bruta a MP3 y enviado con éxito!`);
 

@@ -9,7 +9,8 @@ const {
   randomPokemonId,
   getAudioGrito,
 } = require('../services/pokeapi');
-const { replyText, replyWithSticker } = require('../services/reply');
+
+const { replyText, replyWithImage } = require('../services/reply');
 
 async function handlePokemon(msg, busqueda = null) {
   try {
@@ -76,8 +77,8 @@ async function handlePokemon(msg, busqueda = null) {
       `${estadisticas}\r\n` +
       `💨 *Prob. Esquivar:* ${probEsquive.toFixed(1)}%`;
 
-    await replyWithSticker(msg, mensaje, urlImagen, nombre);
-    console.log(`[Bot] Datos y sticker de ${nombre} enviados correctamente.`);
+    await replyWithImage(msg, urlImagen, mensaje);
+    console.log(`[Bot] Datos e imagen de ${nombre} enviados correctamente.`);
 
   } catch (error) {
     console.error('Error general en #pokemon:', error);

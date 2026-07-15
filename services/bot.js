@@ -199,6 +199,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#trivia') ||
         textoMinuscula === '#incubadora' ||
         textoMinuscula.startsWith('#campo') ||
+        textoMinuscula.startsWith('#sacrificio') ||
         textoMinuscula === '#help';
 
       if (!esComando) return;
@@ -283,6 +284,14 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#pokevariantes')) {
           const { handlePokeVariantes } = require('../commands/pokevariantes'); 
           return await handlePokeVariantes(msg, textoMinuscula);
+        }
+
+        // ==========================================
+        // COMANDO: #sacrificio
+        // ==========================================
+        if (textoMinuscula.startsWith('#sacrificio')) {
+          const { handleSacrificio } = require('../commands/sacrificio');
+          return await handleSacrificio(msg, texto);
         }
 
         // ==========================================
@@ -570,7 +579,8 @@ class BotManager extends EventEmitter {
               if (guardado?.success) {
                 global.pokemonSalvajeActivo = null;
                 const porcentajeExito = Math.round(probabilidadExito * 100);
-                return await msg.reply(`🎉 ¡Impresionante! Has atrapado a **${nombrePokemon}** (Nº ${idPokemon}) 🌟.\n\nTenía un ratio de captura de ${porcentajeExito}%. ¡Tuviste suerte!\n\nSe ha guardado en tu inventario y gastaste 1 Pokéball (Te quedan: ${usuario.pokeballs - 1}).`);
+                // Se agregó el nombre del usuario al anuncio principal
+                return await msg.reply(`🎉 ¡Impresionante! El entrenador *${usuario.nombre_whatsapp}* ha atrapado a **${nombrePokemon}** (Nº ${idPokemon}) 🌟.\n\nTenía un ratio de captura de ${porcentajeExito}%. ¡Buena captura!\n\nSe ha guardado en el inventario y gastaste 1 Pokéball (Te quedan: ${usuario.pokeballs - 1}).`);
               }
 
               if (guardado?.duplicate) {
@@ -596,7 +606,7 @@ class BotManager extends EventEmitter {
         // ==========================================
         if (textoMinuscula.startsWith('#pokedex')) {
           try {
-            const { consultarPokemon, getImagen, getStat } = require('./pokeapi');
+            const { consultarPokemon, getImagen, getStat, getTiposEspanol } = require('./pokeapi');
             const { generarCollagePokemon } = require('../services/canvasService');
 
             const listaPokemon = await pokemonService.obtenerPokedex(whatsappId);
@@ -641,7 +651,8 @@ class BotManager extends EventEmitter {
                   datosBloque.push({
                     nombre: p.nombre,
                     nivel: nivelActual,
-                    experiencia: p.experiencia || 0, 
+                    experiencia: p.experiencia || 0,
+                    tipos: getTiposEspanol(dataApi), // <--- AGREGA ESTA LÍNEA AQUÍ
                     hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
                     atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
                     def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),

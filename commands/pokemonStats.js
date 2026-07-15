@@ -102,17 +102,20 @@ async function handlePokemonStats(msg) {
     const urlImagen = getImagen(dataApi);
     if (urlImagen) {
       try {
+        // Usamos una función de ayuda si la tienes, o MessageMedia directamente
+        // Asegúrate de que urlImagen sea una ruta local válida
         const media = MessageMedia.fromFilePath(urlImagen);
-        if (media) {
-          const chat = await msg.getChat();
-          await chat.sendMessage(media, {
-            sendMediaAsSticker: true,
-            stickerName: pokeDB.nombre,
-            stickerAuthor: `Stats de Entrenador`
-          });
-        }
+        
+        // CORRECCIÓN AQUÍ: Usamos msg.reply en lugar de chat.sendMessage
+        await msg.reply(media, undefined, {
+          sendMediaAsSticker: true,
+          stickerName: pokeDB.nombre,
+          stickerAuthor: 'Stats de Entrenador',
+          quotedMessageId: msg.id._serialized // Mantiene la referencia al mensaje original
+        });
+        
       } catch (imageError) {
-        console.warn('No se pudo enviar la imagen de stats:', imageError.message);
+        console.warn('No se pudo enviar el sticker de stats:', imageError.message);
       }
     }
 

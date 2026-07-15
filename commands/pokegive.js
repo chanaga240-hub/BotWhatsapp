@@ -7,17 +7,23 @@ function getNombreRemitente(msg) {
 
 async function handlePokeGive(msg, textoCompleto) {
   try {
-    const chat = await msg.getChat();
-    if (!chat.isGroup) {
+    const isGroup = msg.from.endsWith('@g.us');
+
+    if (!isGroup) {
       return await msg.reply('❌ Este comando debe usarse dentro de un grupo y mencionando a otro entrenador.');
     }
 
     let mentionIds = msg.mentionedIds || [];
+    // Si necesitas obtener menciones de forma robusta sin getChat:
     if (mentionIds.length === 0 && typeof msg.getMentions === 'function') {
-      const mentions = await msg.getMentions();
-      mentionIds = mentions
-        .map((m) => (m.id && m.id._serialized ? m.id._serialized : ''))
-        .filter(Boolean);
+      try {
+        const mentions = await msg.getMentions();
+        mentionIds = mentions
+          .map((m) => (m.id && m.id._serialized ? m.id._serialized : ''))
+          .filter(Boolean);
+      } catch (e) {
+        // Fallback silencioso si falla getMentions
+      }
     }
 
     if (mentionIds.length === 0) {

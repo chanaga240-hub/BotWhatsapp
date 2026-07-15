@@ -63,16 +63,23 @@ async function generarCollagePokemon(listaPokemonData) {
     ctx.textAlign = 'left';
     ctx.fillText(p.nombre.toUpperCase(), x + 20, y + 40);
 
+    // <-- NUEVO BLOQUE: Renderizado de los Tipos -->
+    ctx.fillStyle = '#38bdf8'; // Usamos un color azul claro que resalte
+    ctx.font = 'italic 16px sans-serif';
+    ctx.fillText(`[ ${p.tipos} ]`, x + 20, y + 65);
+    // <------------------------------------------->
+
     ctx.fillStyle = '#94a3b8';
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'right';
+    // Ajustamos un poco la altura (y + 40 a y + 50 si ves que queda muy pegado)
     ctx.fillText(`Nv. ${p.nivel || 1} | ${p.experiencia || 0} XP`, x + cardWidth - 20, y + 40);
-    ctx.textAlign = 'left'; 
+    ctx.textAlign = 'left';
 
     // Línea separadora
     ctx.beginPath();
-    ctx.moveTo(x + 20, y + 55);
-    ctx.lineTo(x + cardWidth - 20, y + 55);
+    ctx.moveTo(x + 20, y + 75); // <-- AJUSTADO
+    ctx.lineTo(x + cardWidth - 20, y + 75); // <-- AJUSTADO
     ctx.strokeStyle = '#334155';
     ctx.stroke();
 
