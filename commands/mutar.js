@@ -6,7 +6,6 @@ const usuarioService = require('../services/usuarioService');
 function sonStatsIguales(statsA, statsB) {
   if (!statsA || !statsB || statsA.length !== statsB.length) return false;
   for (let i = 0; i < statsA.length; i++) {
-    // Compara el valor base de cada estadística (HP, Ataque, Defensa, etc.)
     if (statsA[i].base_stat !== statsB[i].base_stat) return false;
   }
   return true;
@@ -20,6 +19,8 @@ async function handleMutar(msg, texto) {
   const nombreNuevaForma = partes.slice(1).join('-'); 
 
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
+  
+  // Obtenemos los datos del Pokémon desde tu BD (esto incluye pokemon.punta_adn)
   const pokemon = await pokemonService.verificarYObtenerPokemon(whatsappId, nombrePokemon);
 
   if (!pokemon) return await msg.reply('❌ No tienes un Pokémon con ese nombre.');
@@ -28,15 +29,13 @@ async function handleMutar(msg, texto) {
   const data = await consultarPokemon(pokemon.pokemon_id);
   const todasLasVariantes = await getVariantesPokemon(data);
 
-  // Filtramos solo las formas no permitidas (Mega y Primal siguen bloqueadas para #mutar)
-  // Se permite -gmax ahora para que entre en la lógica de comparación de stats.
+  // Filtramos formas Mega y Primal
   const variantesFiltradas = todasLasVariantes.filter(v => {
     const nombre = v.toLowerCase();
-    return !nombre.includes('-mega') && 
-           !nombre.includes('-primal');
+    return !nombre.includes('-mega') && !nombre.includes('-primal');
   });
 
-  // 2. Búsqueda flexible (normalizamos ambos lados para comparar)
+  // 2. Búsqueda flexible
   const formaEncontrada = variantesFiltradas.find(v => {
     const vNormalizado = v.toLowerCase().replace(/-/g, ' ');
     const inputNormalizado = nombreNuevaForma.toLowerCase().replace(/-/g, ' ');
@@ -53,26 +52,29 @@ async function handleMutar(msg, texto) {
   // 3. Obtener los datos completos de la nueva forma seleccionada
   const dataNueva = await consultarPokemon(formaEncontrada);
 
-  // 4. LÓGICA: Comparar stats y validar Punta ADN
+  // 4. LÓGICA: Comparar stats y validar el desbloqueo permanente del ADN
   const statsSonIguales = sonStatsIguales(data.stats, dataNueva.stats);
   
-  // Obtenemos el inventario para verificar la punta_adn
-  const inventario = await usuarioService.obtenerInventarioCompleto(whatsappId);
-  const tieneADN = inventario && inventario.punta_adn > 0;
+  // Verificamos en la tabla pokemon_atrapados si este ejemplar ya tiene el ADN activado
+  const tieneAdnActivado = pokemon.punta_adn === 1 || pokemon.punta_adn === true;
 
-  // Si las stats cambian (es una forma que mejora o cambia stats) y no tiene el ítem, bloqueamos.
-  // Si las stats son iguales (GMax estético), permitimos la mutación gratis.
-  if (!statsSonIguales && !tieneADN) {
-    return await msg.reply('🧬 La nueva variante altera las estadísticas de combate. Tu Pokémon no tiene el ADN preparado (Punta ADN necesaria).');
+  // Si cambian las stats y el Pokémon NO tiene el ADN inyectado, bloqueamos
+  if (!statsSonIguales && !tieneAdnActivado) {
+    return await msg.reply(`🧬 La nueva variante altera las estadísticas de combate y tu Pokémon no tiene el ADN preparado.\n👉 Si tienes una Punta ADN en tu inventario, aplícasela primero usando: \`#use punta_adn ${pokemon.nombre}\``);
   }
 
-  // 5. Ejecutar cambio
+  // 5. Ejecutar cambio (El ADN permanece activado en la BD para futuros cambios)
   const exito = await pokemonService.cambiarVariantePokemon(pokemon.id, dataNueva.id, formaEncontrada);
 
   if (exito) {
-    // Si fue una mutación de combate, restamos el item (opcional, depende de tu implementación en service)
     const tipoMutacion = statsSonIguales ? '(Mutación Estética)' : '(Mutación de Combate)';
-    await msg.reply(`✨ ¡Éxito! *${pokemon.nombre}* ha mutado a *${formaEncontrada}* ${tipoMutacion}.`);
+    
+    let mensajeExito = `✨ ¡Éxito! *${pokemon.nombre}* ha mutado a *${formaEncontrada}* ${tipoMutacion}.`;
+    if (!statsSonIguales) {
+      mensajeExito += `\n🧬 _El ADN adaptativo sigue activo en este Pokémon._`;
+    }
+    
+    await msg.reply(mensajeExito);
   } else {
     await msg.reply('⚠️ Error al aplicar la mutación.');
   }
