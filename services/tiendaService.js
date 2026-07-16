@@ -32,6 +32,8 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       producto = { nombre: "egg", precioUnitario: 400, tipo: 'inventario' };
     }else if (codigo === '006') { 
       producto = { nombre: "mega_energia", precioUnitario: 1000, tipo: 'inventario' };
+    }else if (codigo === '007') { 
+      producto = { nombre: "llave_mazmorra", precioUnitario: 1000, tipo: 'inventario' };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
@@ -65,6 +67,7 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       else if (producto.nombre === 'punta_adn') columna = 'punta_adn';
       else if (producto.nombre === 'egg') columna = 'egg';
       else if (producto.nombre === 'mega_energia') columna = 'mega_energia';
+      else if (producto.nombre === 'llave_mazmorra') columna = 'llave_mazmorra';
 
       if (invRows.length === 0) {
         // Si NO tiene fila en inventario, la creamos y le asignamos la cantidad comprada de una vez
@@ -73,9 +76,10 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
         const puntaAdnInit = columna === 'punta_adn' ? cantidad : 0;
         const eggInit = columna === 'egg' ? cantidad : 0;
         const megaEnergiaInit = columna === 'mega_energia' ? cantidad : 0;
+        const LlaveMazmorraInit = columna === 'llave_mazmorra' ? cantidad : 0;
         await connection.execute(
-          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas, punta_adn, egg, mega_energia) VALUES (?, ?, 0, ?, ?, ?, ?)',
-          [usuarioId, pocionInit, rocasInit, puntaAdnInit, eggInit, megaEnergiaInit]
+          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas, punta_adn, egg, mega_energia, llave_mazmorra) VALUES (?, ?, 0, ?, ?, ?, ?,?)',
+          [usuarioId, pocionInit, rocasInit, puntaAdnInit, eggInit, megaEnergiaInit,LlaveMazmorraInit]
         );
       } else {
         // Si YA existe, simplemente actualizamos la cantidad sumando a lo que ya tenía
