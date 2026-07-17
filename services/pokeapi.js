@@ -18,8 +18,8 @@ async function getCachedData(queryKey) {
 
   try {
     const query = numericId !== null
-      ? 'SELECT data FROM pokemon_cache WHERE query_key = ? OR pokemon_id = ? LIMIT 1'
-      : 'SELECT data FROM pokemon_cache WHERE query_key = ? LIMIT 1';
+      ? 'SELECT data, species_data, capture_rate FROM pokemon_cache WHERE query_key = ? OR pokemon_id = ? LIMIT 1'
+      : 'SELECT data, species_data, capture_rate FROM pokemon_cache WHERE query_key = ? LIMIT 1';
     const params = numericId !== null ? [queryKey, numericId] : [queryKey];
 
     const [rows] = await db.execute(query, params);
@@ -252,24 +252,15 @@ async function fetchJson(url) {
 }
 
 async function getNombreEspanol(pokemon) {
-  const speciesUrl = pokemon.species?.url;
-  if (!speciesUrl) {
-    return formatName(pokemon.name);
-  }
-
-  if (speciesCache.has(speciesUrl)) {
-    return speciesCache.get(speciesUrl);
-  }
-
-  try {
-    const data = await fetchJson(speciesUrl);
+  // 1. Intentar sacar el nombre de la especie guardada en caché
+  if (pokemon.species_data) {
+    const data = typeof pokemon.species_data === 'string' ? JSON.parse(pokemon.species_data) : pokemon.species_data;
     const esName = data.names?.find((entry) => entry.language.name === 'es')?.name;
-    const nombre = esName || formatName(pokemon.name);
-    speciesCache.set(speciesUrl, nombre);
-    return nombre;
-  } catch {
-    return formatName(pokemon.name);
+    if (esName) return esName;
   }
+  
+  // 2. Si no existe, fallback al formato original
+  return formatName(pokemon.name);
 }
 
 async function getHabilidadEspanol(abilityEntry) {
@@ -336,7 +327,7 @@ async function getCaptureRate(pokemon) {
 
   try {
     const speciesData = await fetchJson(speciesUrl);
-    return speciesData.capture_rate ?? 45;
+    return pokemon.capture_rate ?? 45;
   } catch {
     return 45; // Default si la consulta falla
   }
@@ -396,17 +387,27 @@ async function obtenerMultiplicadorLocal(tipoAtacante, tiposDefensor) {
 // --- FUNCIONES PARA EVOLUCION ---
 
 async function getEvolucionesInmediatas(pokemon) {
-  if (!pokemon || !pokemon.species || !pokemon.species.url) {
-    return [];
-  }
+  if (!pokemon) return [];
 
   try {
-    // 1. Obtener datos de especie usando la URL directa (y caché interna)
-    const speciesData = await fetchJson(pokemon.species.url);
+    let speciesData;
+
+    // 1. Obtener datos de especie desde la caché (species_data) o usar el fallback
+    if (pokemon.species_data) {
+      speciesData = typeof pokemon.species_data === 'string' 
+        ? JSON.parse(pokemon.species_data) 
+        : pokemon.species_data;
+    } else if (pokemon.species && pokemon.species.url) {
+      // Fallback de seguridad por si algún Pokémon antiguo no se migró correctamente
+      speciesData = await fetchJson(pokemon.species.url);
+    } else {
+      return [];
+    }
     
     if (!speciesData?.evolution_chain?.url) return [];
 
-    // 2. Obtener la cadena evolutiva
+    // 2. Obtener la cadena evolutiva (Esta llamada a la API sí se mantiene, 
+    //    ya que la cadena evolutiva es un JSON distinto que no está en tu BD)
     const chainData = await fetchJson(speciesData.evolution_chain.url);
 
     // 3. Buscar el nombre de la especie actual en la cadena
@@ -440,19 +441,52 @@ async function getEvolucionesInmediatas(pokemon) {
 }
 
 async function getVariantesPokemon(pokemon) {
-  const speciesUrl = pokemon.species?.url;
-  
-  if (!speciesUrl) {
-    // Si por alguna razón no hay URL de especie, devolvemos el nombre normal
-    return [pokemon.name];
-  }
-
   try {
-    const speciesData = await fetchJson(speciesUrl);
-    // Mapeamos el array de varieties para sacar solo el nombre adaptado para la API
-    return speciesData.varieties.map(variedad => variedad.pokemon.name);
+    // 1. Aseguramos tener la data de la especie
+    let speciesData = typeof pokemon.species_data === 'string' 
+      ? JSON.parse(pokemon.species_data) 
+      : pokemon.species_data;
+
+    // Si no tenemos variedades o cadena evolutiva, consultamos la API
+    if ((!speciesData?.evolution_chain?.url || !speciesData?.varieties) && pokemon.species?.url) {
+      speciesData = await fetchJson(pokemon.species.url);
+    }
+
+    // 2. Buscamos hermanos evolutivos (ej. si eres Eevee, encontrar a Flareon, Vaporeon, etc.)
+    let variantes = [];
+    if (speciesData?.evolution_chain?.url) {
+      const chainData = await fetchJson(speciesData.evolution_chain.url);
+      const targetSpeciesName = speciesData.name;
+
+      function buscarHermanos(nodoActual, targetName, nodoPadre = null) {
+        if (!nodoActual) return [];
+        
+        // Si encontramos la rama donde está el Pokémon actual, tomamos a todos sus hermanos
+        if (nodoActual.species.name === targetName) {
+          return nodoPadre ? nodoPadre.evolves_to.map(evo => evo.species.name) : [targetName];
+        }
+        
+        for (const evo of nodoActual.evolves_to) {
+          const encontrados = buscarHermanos(evo, targetName, nodoActual);
+          if (encontrados.length > 0) return encontrados;
+        }
+        return [];
+      }
+      variantes = buscarHermanos(chainData.chain, targetSpeciesName);
+    }
+
+    // 3. Agregamos las variedades oficiales (Megas, Formas regionales)
+    if (speciesData?.varieties && Array.isArray(speciesData.varieties)) {
+      const formasAlternativas = speciesData.varieties.map(v => v.pokemon.name);
+      // Combinamos ambas listas y usamos Set para eliminar duplicados (como el propio nombre si ya estaba)
+      variantes = [...new Set([...variantes, ...formasAlternativas])];
+    }
+
+    // 4. Si la lista quedó vacía, devolvemos al menos el nombre original
+    return variantes.length > 0 ? variantes : [pokemon.name];
+    
   } catch (err) {
-    console.error('Error obteniendo variantes:', err);
+    console.error("Error en getVariantesPokemon:", err);
     return [pokemon.name];
   }
 }

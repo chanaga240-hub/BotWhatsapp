@@ -81,7 +81,15 @@ class BotManager extends EventEmitter {
       this.logs.pop();
     }
     this.emit('log', entry);
-    console.log(`[${entry.time}] ${message}`);
+    
+    // Mejora visual: los errores saldrán en rojo en la consola si usas un terminal moderno
+    if (level === 'error') {
+      console.error(`[${entry.time}] [ERROR] ${message}`);
+    } else if (level === 'warn') {
+      console.warn(`[${entry.time}] [WARN] ${message}`);
+    } else {
+      console.log(`[${entry.time}] [INFO] ${message}`);
+    }
   }
 
   setStatus(status) {
@@ -712,7 +720,12 @@ class BotManager extends EventEmitter {
         await handleCommand(msg);
 
       } catch (error) {
-        this.log(`Error procesando comando: ${error.message}`, 'error');
+        // Obtenemos el stack trace para saber exactamente qué archivo y línea falló
+        const errorDetail = error.stack || error.message;
+        this.log(`Error procesando comando: ${errorDetail}`, 'error');
+        
+        // Opcional: Avisar al usuario en el chat que hubo un error técnico
+        await msg.reply('⚠️ Ocurrió un error técnico al procesar tu solicitud. El error ha sido registrado.');
       }
     });
 

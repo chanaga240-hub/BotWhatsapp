@@ -8,17 +8,14 @@ const fs = require('fs');
 const triviasActivas = new Map();
 
 async function handleTrivia(msg, client) {
-    const chat = await msg.getChat();
-    const groupId = chat.id._serialized;
-
-    if (!chat.isGroup) {
-        return await msg.reply('❌ Este comando solo puede usarse en grupos.');
-    }
+  try {
+    // SOLUCIÓN: Usamos directamente el ID de origen, evadiendo msg.getChat() por completo
+    const groupId = msg.from;
 
     if (triviasActivas.has(groupId)) {
         return await msg.reply('⚠️ Ya hay una trivia en curso en este grupo.');
     }
-
+    
     // 1. Validar el cooldown
     const config = await configuracionService.obtenerConfiguracion('trivia');
     if (config) {
@@ -40,7 +37,9 @@ async function handleTrivia(msg, client) {
     // 2. Iniciar la convocatoria
     const participantes = new Set();
     const pollConvocatoria = new Poll('🧠 *¡MINI-TRIVIA POKÉMON!*\n\n¿Quieres participar en la trivia de tipo = silueta?\nSe te enviarán las preguntas al privado.', ['Sí', 'No']);
-    const msgConvocatoria = await chat.sendMessage(pollConvocatoria);
+    
+    // Reemplazo: Usar client.sendMessage en lugar de chat.sendMessage
+    const msgConvocatoria = await client.sendMessage(groupId, pollConvocatoria);
 
     const voteListener = async (vote) => {
         if (vote.parentMessage && vote.parentMessage.id._serialized === msgConvocatoria.id._serialized) {
@@ -56,26 +55,31 @@ async function handleTrivia(msg, client) {
     };
     client.on('vote_update', voteListener);
 
-    await chat.sendMessage('⏳ Tienen *30 segundos* para votar "Sí" y entrar a la trivia.');
+    await client.sendMessage(groupId, '⏳ Tienen *30 segundos* para votar "Sí" y entrar a la trivia.');
     
     await new Promise(resolve => setTimeout(resolve, 30000));
     client.off('vote_update', voteListener); 
 
     if (participantes.size < 3) {
         triviasActivas.delete(groupId);
-        return await chat.sendMessage('😔 No hubo suficientes participantes para iniciar la trivia (mínimo 3). Operación cancelada.');
+        return await client.sendMessage(groupId, '😔 No hubo suficientes participantes para iniciar la trivia (mínimo 3). Operación cancelada.');
     }
 
     await configuracionService.actualizarUltimoEnvio('trivia');
     
-    await chat.sendMessage(`✅ ¡Inscripciones cerradas! *${participantes.size}* entrenador(es) participarán.\nRevisen sus mensajes privados, la trivia comienza YA.`);
+    await client.sendMessage(groupId, `✅ ¡Inscripciones cerradas! *${participantes.size}* entrenador(es) participarán.\nRevisen sus mensajes privados, la trivia comienza YA.`);
 
-    // 3. Preparar el registro de puntajes (AGREGAMOS respuestaActual)
+    // 3. Preparar el registro de puntajes (Con Try/Catch de seguridad adicional)
     const puntajes = {};
     for (const p of participantes) {
         puntajes[p] = { correctas: 0, respondido: false, nombre: '', respuestaActual: null };
-        const contact = await client.getContactById(p);
-        puntajes[p].nombre = contact.pushname || contact.name || p.split('@')[0];
+        try {
+            const contact = await client.getContactById(p);
+            puntajes[p].nombre = contact.pushname || contact.name || p.split('@')[0];
+        } catch (errContact) {
+            // Si Puppeteer falla al buscar un contacto en la caché, usamos su número como fallback
+            puntajes[p].nombre = p.split('@')[0];
+        }
     }
 
     // 4. Iniciar las 5 Rondas
@@ -97,29 +101,23 @@ async function handleTrivia(msg, client) {
         let urlImagen = getImagen(pokeCorrectoDatos);
         let siluetaBuffer = null;
 
-        // Validamos que el archivo de imagen EXISTA realmente en tu disco duro
         if (urlImagen && fs.existsSync(urlImagen)) {
              siluetaBuffer = await generarSilueta(urlImagen);
         } else {
              console.log(`⚠️ La imagen local no existe en: ${urlImagen}. Saltando ronda.`);
         }
 
-        // --- NUEVA VALIDACIÓN AÑADIDA ---
-        // Si falló la descarga o generación de la imagen, reintentamos la ronda.
         if (!siluetaBuffer) {
             console.log(`⚠️ Falló la generación de imagen para ${pokeCorrectoDatos.name}. Reintentando ronda ${ronda}...`);
-            ronda--; // Restamos 1 para que el bucle vuelva a intentar esta misma ronda
-            continue; // Saltamos todo lo de abajo y volvemos al inicio del for
+            ronda--; 
+            continue; 
         }
-        // -------------------------------
 
         const media = new MessageMedia('image/png', siluetaBuffer.toString('base64'), 'silueta.png');
-
         const pollPregunta = new Poll(`Ronda ${ronda}/5: ¿Quién es este Pokémon?`, nombresOpciones);
-
         const mensajesRonda = new Map();
+        
         for (const p of participantes) {
-            // Reiniciamos el estado de respuesta para esta nueva ronda
             puntajes[p].respondido = false; 
             puntajes[p].respuestaActual = null; 
             try {
@@ -139,10 +137,9 @@ async function handleTrivia(msg, client) {
                 const participanteWid = mensajesRonda.get(msgId);
                 const respuesta = vote.selectedOptions.length > 0 ? vote.selectedOptions[0].name : null;
                 
-                // Registramos solo el primer voto (evita que cambien a última hora y hagan trampa)
                 if (!puntajes[participanteWid].respondido && respuesta) {
                     puntajes[participanteWid].respondido = true;
-                    puntajes[participanteWid].respuestaActual = respuesta; // Guardamos su respuesta
+                    puntajes[participanteWid].respuestaActual = respuesta;
                     
                     if (respuesta === pokeCorrectoDatos.name.toUpperCase()) {
                         puntajes[participanteWid].correctas += 1;
@@ -152,11 +149,9 @@ async function handleTrivia(msg, client) {
         };
 
         client.on('vote_update', answerListener);
-        
         await new Promise(resolve => setTimeout(resolve, 30000));
         client.off('vote_update', answerListener);
 
-        // AJUSTE: Mensaje de retroalimentación detallada
         const respuestaCorrecta = pokeCorrectoDatos.name.toUpperCase();
         
         for (const p of participantes) {
@@ -220,7 +215,12 @@ async function handleTrivia(msg, client) {
         mensajeFinal += `\n😅 ¡Nadie acertó ninguna pregunta esta vez! Mejor suerte para la próxima.`;
     }
 
-    await chat.sendMessage(mensajeFinal);
+    await client.sendMessage(groupId, mensajeFinal);
+
+  } catch (error) {
+    console.error("[Trivia] Error fatal:", error.stack);
+    await msg.reply("⚠️ Ocurrió un error inesperado al intentar iniciar la trivia.");
+  }
 }
 
 module.exports = { handleTrivia };
