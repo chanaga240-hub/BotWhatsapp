@@ -491,37 +491,52 @@ async function obtenerPokemonBebeAleatorio() {
  * @param {string} tipo - Ejemplo: 'fire', 'water', 'normal'
  */
 async function buscarPokemonPorTipo(tipo) {
-    try {
-        // 1. Obtener lista de Pokémon del tipo
-        const url = `https://pokeapi.co/api/v2/type/${tipo.toLowerCase()}`;
-        const response = await fetch(url);
-        const data = await response.json();
+    let pokemonEncontrado = null;
 
-        // 2. Elegir uno al azar
-        const pokemonList = data.pokemon;
-        const randomEntry = pokemonList[Math.floor(Math.random() * pokemonList.length)];
-        const nombreAleatorio = randomEntry.pokemon.name;
+    // El ciclo se repetirá infinitamente hasta que logre obtener un Pokémon sin errores
+    while (!pokemonEncontrado) {
+        try {
+            // 1. Obtener lista de Pokémon del tipo
+            const url = `https://pokeapi.co/api/v2/type/${tipo.toLowerCase()}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Error al conectar con la lista de tipos');
+            const data = await response.json();
 
-        // 3. Obtener la especie para llegar a su cadena evolutiva
-        const responseSpecies = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${nombreAleatorio}`);
-        const dataSpecies = await responseSpecies.json();
-        
-        // 4. Obtener la URL de la cadena evolutiva
-        const evolutionChainUrl = dataSpecies.evolution_chain.url;
-        const responseChain = await fetch(evolutionChainUrl);
-        const dataChain = await responseChain.json();
+            // 2. Elegir uno al azar
+            const pokemonList = data.pokemon;
+            if (!pokemonList || pokemonList.length === 0) throw new Error('Lista de Pokémon vacía');
+            
+            const randomEntry = pokemonList[Math.floor(Math.random() * pokemonList.length)];
+            const nombreAleatorio = randomEntry.pokemon.name;
 
-        // 5. Extraer la primera fase (Siempre es la base de la cadena)
-        // dataChain.chain es el objeto raíz, su 'species.name' es la fase 1
-        const nombreFaseBase = dataChain.chain.species.name;
+            // 3. Obtener la especie para llegar a su cadena evolutiva
+            const responseSpecies = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${nombreAleatorio}`);
+            if (!responseSpecies.ok) throw new Error(`Error al obtener la especie de ${nombreAleatorio}`);
+            const dataSpecies = await responseSpecies.json();
+            
+            // 4. Obtener la URL de la cadena evolutiva
+            const evolutionChainUrl = dataSpecies.evolution_chain?.url;
+            if (!evolutionChainUrl) throw new Error(`El Pokémon ${nombreAleatorio} no tiene cadena evolutiva`);
+            
+            const responseChain = await fetch(evolutionChainUrl);
+            if (!responseChain.ok) throw new Error('Error al obtener la cadena evolutiva');
+            const dataChain = await responseChain.json();
 
-        // 6. Consultar los datos completos del Pokémon base
-        return await consultarPokemon(nombreFaseBase);
+            // 5. Extraer la primera fase (Siempre es la base de la cadena)
+            const nombreFaseBase = dataChain.chain.species.name;
 
-    } catch (error) {
-        console.error('Error en buscarPokemonPorTipo (filtrado evolutivo):', error);
-        return await consultarPokemon('pikachu'); 
+            // 6. Consultar los datos completos del Pokémon base
+            // Si esto tiene éxito, se asigna el valor y el bucle while se detiene
+            pokemonEncontrado = await consultarPokemon(nombreFaseBase);
+
+        } catch (error) {
+            // Si ocurre CUALQUIER error en los pasos anteriores, entra aquí.
+            // Como pokemonEncontrado sigue siendo null, el ciclo vuelve a empezar de inmediato.
+            console.warn(`[PokeAPI] Error buscando Pokémon tipo ${tipo}, reintentando... Detalles: ${error.message}`);
+        }
     }
+
+    return pokemonEncontrado;
 }
 
 // Asegúrate de agregar estas funciones al module.exports existente:

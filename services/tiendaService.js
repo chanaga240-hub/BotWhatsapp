@@ -33,7 +33,7 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
     }else if (codigo === '006') { 
       producto = { nombre: "mega_energia", precioUnitario: 1000, tipo: 'inventario' };
     }else if (codigo === '007') { 
-      producto = { nombre: "llave_mazmorra", precioUnitario: 1000, tipo: 'inventario' };
+      producto = { nombre: "llave_mazmorra", precioUnitario: 700, tipo: 'inventario' };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
