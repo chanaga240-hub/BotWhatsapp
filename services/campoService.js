@@ -13,6 +13,9 @@ function generarRecompensaAleatoria() {
 function generarEstructuraCampo() {
     const filas = ['A', 'B', 'C', 'D'];
     const estructura = {};
+    const todasLasCeldas = [];
+
+    // Generamos las 28 celdas de forma normal
     for (const fila of filas) {
         estructura[fila] = {};
         for (let col = 1; col <= 7; col++) {
@@ -20,8 +23,14 @@ function generarEstructuraCampo() {
                 estado: 'libre', 
                 resultado: generarRecompensaAleatoria() 
             };
+            todasLasCeldas.push({ fila, col });
         }
     }
+
+    // NUEVO: Elegimos una celda al azar y escondemos EXACTAMENTE 1 llave de mazmorra
+    const celdaLlave = todasLasCeldas[Math.floor(Math.random() * todasLasCeldas.length)];
+    estructura[celdaLlave.fila][celdaLlave.col].resultado = 'llave_mazmorra';
+
     return estructura;
 }
 

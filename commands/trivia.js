@@ -9,7 +9,6 @@ const triviasActivas = new Map();
 
 async function handleTrivia(msg, client) {
   try {
-    // SOLUCIÓN: Usamos directamente el ID de origen, evadiendo msg.getChat() por completo
     const groupId = msg.from;
 
     if (triviasActivas.has(groupId)) {
@@ -38,19 +37,29 @@ async function handleTrivia(msg, client) {
     const participantes = new Set();
     const pollConvocatoria = new Poll('🧠 *¡MINI-TRIVIA POKÉMON!*\n\n¿Quieres participar en la trivia de tipo = silueta?\nSe te enviarán las preguntas al privado.', ['Sí', 'No']);
     
-    // Reemplazo: Usar client.sendMessage en lugar de chat.sendMessage
     const msgConvocatoria = await client.sendMessage(groupId, pollConvocatoria);
 
     const voteListener = async (vote) => {
-        if (vote.parentMessage && vote.parentMessage.id._serialized === msgConvocatoria.id._serialized) {
-            const userWid = vote.voter;
-            const opcionesVotadas = vote.selectedOptions.map(opt => opt.name);
+        try {
+            // Extraer el ID de forma segura según la versión de whatsapp-web.js
+            const msgId = vote.msgId || (vote.parentMessage && vote.parentMessage.id ? vote.parentMessage.id._serialized : null);
             
-            if (opcionesVotadas.includes('Sí')) {
-                participantes.add(userWid);
-            } else {
-                participantes.delete(userWid);
+            if (msgId === msgConvocatoria.id._serialized) {
+                const userWid = vote.voter || vote.sender; // Extraer usuario de forma segura
+                
+                const opciones = vote.selectedOptions || [];
+                // Normalizamos las opciones a minúsculas
+                const opcionesVotadas = opciones.map(opt => (opt.name || opt.localName || '').toLowerCase());
+                
+                // Hacemos el match tolerante a tildes y mayúsculas
+                if (opcionesVotadas.includes('sí') || opcionesVotadas.includes('si')) {
+                    participantes.add(userWid);
+                } else {
+                    participantes.delete(userWid);
+                }
             }
+        } catch (err) {
+            console.error("Error validando voto en convocatoria:", err);
         }
     };
     client.on('vote_update', voteListener);
@@ -60,16 +69,17 @@ async function handleTrivia(msg, client) {
     await new Promise(resolve => setTimeout(resolve, 30000));
     client.off('vote_update', voteListener); 
 
+    // Validación de cantidad mínima de participantes
     if (participantes.size < 3) {
         triviasActivas.delete(groupId);
-        return await client.sendMessage(groupId, '😔 No hubo suficientes participantes para iniciar la trivia (mínimo 3). Operación cancelada.');
+        return await client.sendMessage(groupId, `😔 No hubo suficientes participantes para iniciar la trivia (mínimo 3).\n\nSolo *${participantes.size} entrenador(es)* votaron "Sí". Operación cancelada.`);
     }
 
     await configuracionService.actualizarUltimoEnvio('trivia');
     
     await client.sendMessage(groupId, `✅ ¡Inscripciones cerradas! *${participantes.size}* entrenador(es) participarán.\nRevisen sus mensajes privados, la trivia comienza YA.`);
 
-    // 3. Preparar el registro de puntajes (Con Try/Catch de seguridad adicional)
+    // 3. Preparar el registro de puntajes
     const puntajes = {};
     for (const p of participantes) {
         puntajes[p] = { correctas: 0, respondido: false, nombre: '', respuestaActual: null };
@@ -77,7 +87,6 @@ async function handleTrivia(msg, client) {
             const contact = await client.getContactById(p);
             puntajes[p].nombre = contact.pushname || contact.name || p.split('@')[0];
         } catch (errContact) {
-            // Si Puppeteer falla al buscar un contacto en la caché, usamos su número como fallback
             puntajes[p].nombre = p.split('@')[0];
         }
     }
@@ -130,21 +139,28 @@ async function handleTrivia(msg, client) {
         }
 
         const answerListener = async (vote) => {
-            if (!vote.parentMessage) return; 
-            const msgId = vote.parentMessage.id._serialized;
-            
-            if (mensajesRonda.has(msgId)) {
-                const participanteWid = mensajesRonda.get(msgId);
-                const respuesta = vote.selectedOptions.length > 0 ? vote.selectedOptions[0].name : null;
+            try {
+                // Aplicamos la misma lectura segura del ID para el voto
+                const msgId = vote.msgId || (vote.parentMessage && vote.parentMessage.id ? vote.parentMessage.id._serialized : null);
+                if (!msgId) return;
                 
-                if (!puntajes[participanteWid].respondido && respuesta) {
-                    puntajes[participanteWid].respondido = true;
-                    puntajes[participanteWid].respuestaActual = respuesta;
+                if (mensajesRonda.has(msgId)) {
+                    const participanteWid = mensajesRonda.get(msgId);
+                    const opciones = vote.selectedOptions || [];
+                    const respuesta = opciones.length > 0 ? (opciones[0].name || opciones[0].localName) : null;
                     
-                    if (respuesta === pokeCorrectoDatos.name.toUpperCase()) {
-                        puntajes[participanteWid].correctas += 1;
+                    if (!puntajes[participanteWid].respondido && respuesta) {
+                        puntajes[participanteWid].respondido = true;
+                        puntajes[participanteWid].respuestaActual = respuesta;
+                        
+                        // Comparamos sin importar mayúsculas
+                        if (respuesta.toUpperCase() === pokeCorrectoDatos.name.toUpperCase()) {
+                            puntajes[participanteWid].correctas += 1;
+                        }
                     }
                 }
+            } catch (err) {
+                console.error("Error validando respuesta en ronda:", err);
             }
         };
 
@@ -157,7 +173,7 @@ async function handleTrivia(msg, client) {
         for (const p of participantes) {
             try {
                 const respuestaUsuario = puntajes[p].respuestaActual || "No respondiste";
-                const icono = (respuestaUsuario === respuestaCorrecta) ? '✅' : '❌';
+                const icono = (respuestaUsuario.toUpperCase() === respuestaCorrecta) ? '✅' : '❌';
                 
                 const mensajeFeedback = `⏳ ¡Tiempo agotado!\n\n👉 Tu respuesta: *${respuestaUsuario}*\n✔️ Respuesta correcta: *${respuestaCorrecta}*\n\nResultado: ${icono}`;
                 
@@ -218,6 +234,7 @@ async function handleTrivia(msg, client) {
     await client.sendMessage(groupId, mensajeFinal);
 
   } catch (error) {
+    triviasActivas.delete(msg.from); 
     console.error("[Trivia] Error fatal:", error.stack);
     await msg.reply("⚠️ Ocurrió un error inesperado al intentar iniciar la trivia.");
   }

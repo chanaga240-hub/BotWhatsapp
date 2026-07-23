@@ -13,12 +13,14 @@ async function handleInventario(msg) {
 
     let mensaje = `🎒 *TU INVENTARIO* 🎒\n`;
     mensaje += `──────────────────────\n`;
+    mensaje += `💰 *Monedas:* ${inv.monedas}\n`;
     mensaje += `🔴 *Pokéballs:* ${inv.pokeballs}\n`;
-    mensaje += `🧪 *pocion_xp:* ${inv.pocion_xp_small}\n`;
-    mensaje += `🪨 *rocas_evolutivas:* ${inv.rocas_evolutivas}\n`;
-    mensaje += `🧬 *punta_adn:* ${inv.punta_adn}\n`;
-    mensaje += `🥚 *egg:* ${inv.egg}\n`;
-    mensaje += `🧿 *mega_energia:* ${inv.mega_energia}\n`;
+    mensaje += `🧪 *Poción XP:* ${inv.pocion_xp_small}\n`;
+    mensaje += `🪨 *Roca Evolutiva:* ${inv.rocas_evolutivas}\n`;
+    mensaje += `🧬 *Punta ADN:* ${inv.punta_adn}\n`;
+    mensaje += `🥚 *Huevo Pokémon:* ${inv.egg}\n`;
+    mensaje += `🧿 *Mega Energía:* ${inv.mega_energia}\n`;
+    mensaje += `🗝️ *Llave Mazmorra:* ${inv.llave_mazmorra}\n`;
     mensaje += `──────────────────────\n`;
     mensaje += `👉 _Usa #buy para adquirir más objetos._`;
 

@@ -1,5 +1,6 @@
 let state = {
   selected: new Set(),
+  teams: [], // [{ id: 'team_1', nombre: 'Ash & Misty', p1: {...}, p2: {...}, nivel: 10 }]
   bracket: [],
   trainers: [],
   redemptionMatches: [],
@@ -9,6 +10,8 @@ let state = {
   rrMatches: [],
   standings: [] 
 };
+
+let firstSelectedForPair = null; // Almacena temporalmente al 1er jugador al armar parejas manualmente
 
 // Referencias DOM
 const trainerGrid = document.getElementById('trainerGrid');
@@ -20,11 +23,18 @@ const phase2 = document.getElementById('phase2');
 const bracketVisual = document.getElementById('bracketVisual');
 const btnReset = document.getElementById('btnReset');
 const tourneyTypeSelect = document.getElementById('tourneyType');
+const teamsBuilderSection = document.getElementById('teamsBuilderSection');
+const teamsListGrid = document.getElementById('teamsListGrid');
+const unpairedGrid = document.getElementById('unpairedGrid');
+const btnAutoPair = document.getElementById('btnAutoPair');
+const btnClearTeams = document.getElementById('btnClearTeams');
+const pairingStatus = document.getElementById('pairingStatus');
 
 // ── SISTEMA DE GUARDADO (LOCALSTORAGE) ──
 function saveTournament() {
   const dataToSave = {
     selected: Array.from(state.selected),
+    teams: state.teams,
     bracket: state.bracket,
     redemptionMatches: state.redemptionMatches,
     redemptionQueue: state.redemptionQueue,
@@ -41,6 +51,7 @@ function loadTournament() {
   if (saved) {
     const data = JSON.parse(saved);
     state.selected = new Set(data.selected);
+    state.teams = data.teams || [];
     state.bracket = data.bracket || [];
     state.redemptionMatches = data.redemptionMatches || [];
     state.redemptionQueue = data.redemptionQueue || [];
@@ -56,24 +67,26 @@ function loadTournament() {
 function clearTournament() {
   localStorage.removeItem('pokeTorneoState');
   state.selected.clear();
+  state.teams = [];
   state.bracket = [];
   state.redemptionMatches = [];
   state.redemptionQueue = [];
   state.thirdPlaceMatch = null;
   state.rrMatches = [];
   state.standings = [];
+  firstSelectedForPair = null;
 }
 
 // Inicializar y obtener datos de la BD
 async function loadTrainersFromDB() {
   try {
     trainerGrid.innerHTML = '<div style="padding: 1rem; color: var(--text-muted);">Cargando entrenadores de la base de datos...</div>';
-    // MOCK PARA PRUEBAS: Reemplaza esto con tu fetch('/api/entrenadores') real si es necesario
     const res = await fetch('/api/entrenadores').catch(() => ({ 
       ok: true, 
       json: () => Promise.resolve([
         {id: 1, nombre_whatsapp: 'Ash', nivel: 10}, {id: 2, nombre_whatsapp: 'Misty', nivel: 9},
-        {id: 3, nombre_whatsapp: 'Brock', nivel: 8}, {id: 4, nombre_whatsapp: 'Gary', nivel: 12}
+        {id: 3, nombre_whatsapp: 'Brock', nivel: 8}, {id: 4, nombre_whatsapp: 'Gary', nivel: 12},
+        {id: 5, nombre_whatsapp: 'César', nivel: 11}, {id: 6, nombre_whatsapp: 'Andrea', nivel: 10}
       ]) 
     }));
     if (!res.ok) throw new Error('Error al obtener entrenadores');
@@ -89,7 +102,7 @@ async function loadTrainersFromDB() {
       updateUI();
       phase1.classList.remove('active');
       phase2.classList.add('active');
-      if (state.tourneyType === 'eliminatoria') renderBracket();
+      if (state.tourneyType.includes('eliminatoria')) renderBracket();
       else renderRoundRobin();
     } else {
       renderTrainers();
@@ -100,7 +113,7 @@ async function loadTrainersFromDB() {
   }
 }
 
-// Fase 1: Renderizado
+// Fase 1: Renderizado de Entrenadores
 function renderTrainers(filter = '') {
   trainerGrid.innerHTML = '';
   const filtered = state.trainers.filter(t => 
@@ -126,8 +139,14 @@ function renderTrainers(filter = '') {
     `;
     
     card.addEventListener('click', () => {
-      if (state.selected.has(t.id)) state.selected.delete(t.id);
-      else state.selected.add(t.id);
+      if (state.selected.has(t.id)) {
+        state.selected.delete(t.id);
+        // Remover de las parejas si ya estaba emparejado
+        state.teams = state.teams.filter(team => team.p1.id !== t.id && team.p2.id !== t.id);
+        if (firstSelectedForPair && firstSelectedForPair.id === t.id) firstSelectedForPair = null;
+      } else {
+        state.selected.add(t.id);
+      }
       
       card.classList.toggle('selected');
       updateUI();
@@ -139,15 +158,170 @@ function renderTrainers(filter = '') {
 
 function updateUI() {
   selectedCount.textContent = state.selected.size;
-  btnGenerate.disabled = state.selected.size < 3;
+  const is2v2 = tourneyTypeSelect.value.includes('2vs2');
+
+  if (is2v2) {
+    teamsBuilderSection.style.display = 'block';
+    renderTeamsAndUnpaired();
+    
+    // Validación para habilitar el botón de generar
+    const allPaired = state.selected.size >= 4 && 
+                      state.selected.size % 2 === 0 && 
+                      state.teams.length === (state.selected.size / 2);
+
+    btnGenerate.disabled = !allPaired;
+  } else {
+    teamsBuilderSection.style.display = 'none';
+    btnGenerate.disabled = state.selected.size < 3;
+  }
 }
+
+// ── SISTEMA DE EMPAREJAMIENTO MANUAL Y AUTOMÁTICO (2VS2) ──
+function renderTeamsAndUnpaired() {
+  unpairedGrid.innerHTML = '';
+  teamsListGrid.innerHTML = '';
+
+  // Actualizar estado de texto del emparejamiento manual
+  if (firstSelectedForPair) {
+    pairingStatus.innerHTML = `👉 Seleccionaste a <strong>${escapeHtml(firstSelectedForPair.nombre)}</strong>. Elige a su compañero...`;
+  } else {
+    pairingStatus.innerHTML = `SELECCIÓN MANUAL: Haz clic en un entrenador "Sin Pareja" para empezar a armar la dupla.`;
+  }
+
+  // 1. Obtener entrenadores seleccionados que aún NO tienen pareja
+  const pairedIds = new Set(state.teams.flatMap(t => [t.p1.id, t.p2.id]));
+  const unpairedPlayers = Array.from(state.selected)
+    .filter(id => !pairedIds.has(id))
+    .map(id => state.trainers.find(t => t.id === id));
+
+  if (unpairedPlayers.length === 0 && state.selected.size > 0) {
+    unpairedGrid.innerHTML = '<div style="color: var(--success); font-size: 0.85rem;">✅ Todos los entrenadores seleccionados tienen pareja.</div>';
+  } else if (state.selected.size === 0) {
+    unpairedGrid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">Selecciona entrenadores arriba primero.</div>';
+  }
+
+  // Renderizar chips de jugadores sin pareja
+  unpairedPlayers.forEach(p => {
+    const chip = document.createElement('button');
+    const isFirst = firstSelectedForPair && firstSelectedForPair.id === p.id;
+    chip.style.padding = '0.5rem 0.8rem';
+    chip.style.background = isFirst ? 'var(--yellow)' : 'rgba(15, 23, 42, 0.9)';
+    chip.style.color = isFirst ? 'var(--bg-dark)' : 'var(--text-main)';
+    chip.style.border = isFirst ? '2px solid var(--yellow)' : '1px solid var(--accent-cyan)';
+    chip.style.borderRadius = '6px';
+    chip.style.cursor = 'pointer';
+    chip.style.fontWeight = 'bold';
+    chip.style.fontSize = '0.85rem';
+    chip.innerHTML = `${escapeHtml(p.nombre)} <small>(Nv. ${p.nivel})</small>`;
+
+    chip.addEventListener('click', () => {
+      if (!firstSelectedForPair) {
+        firstSelectedForPair = p;
+      } else if (firstSelectedForPair.id === p.id) {
+        firstSelectedForPair = null; // Deseleccionar
+      } else {
+        // Crear la pareja
+        state.teams.push({
+          id: `team_${firstSelectedForPair.id}_${p.id}`,
+          nombre: `${firstSelectedForPair.nombre} & ${p.nombre}`,
+          p1: firstSelectedForPair,
+          p2: p,
+          nivel: Math.round((firstSelectedForPair.nivel + p.nivel) / 2)
+        });
+        firstSelectedForPair = null;
+      }
+      updateUI();
+    });
+
+    unpairedGrid.appendChild(chip);
+  });
+
+  // 2. Renderizar Parejas Armadas
+  if (state.teams.length === 0) {
+    teamsListGrid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">Aún no se han formado parejas.</div>';
+  } else {
+    state.teams.forEach((team, index) => {
+      const teamCard = document.createElement('div');
+      teamCard.style.background = 'rgba(15, 23, 42, 0.8)';
+      teamCard.style.border = '1px solid var(--accent-cyan)';
+      teamCard.style.borderRadius = '8px';
+      teamCard.style.padding = '0.6rem 0.8rem';
+      teamCard.style.display = 'flex';
+      teamCard.style.justifyContent = 'space-between';
+      teamCard.style.alignItems = 'center';
+
+      teamCard.innerHTML = `
+        <div>
+          <strong style="color: var(--accent-cyan); font-size: 0.8rem;">Pareja #${index + 1}</strong>
+          <span style="font-size: 0.9rem; font-weight: bold; display: block;">${escapeHtml(team.nombre)}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <small style="color: var(--text-muted); font-family: var(--font-mono);">Nv. ${team.nivel}</small>
+          <button style="background: transparent; border: none; color: var(--red); cursor: pointer; font-size: 1rem;" title="Eliminar Pareja">❌</button>
+        </div>
+      `;
+
+      // Evento para desarmar esta pareja
+      teamCard.querySelector('button').addEventListener('click', () => {
+        state.teams.splice(index, 1);
+        updateUI();
+      });
+
+      teamsListGrid.appendChild(teamCard);
+    });
+  }
+}
+
+// Emparejar automáticamente a los que falten o a todos
+function autoPairTeams() {
+  const selectedPlayers = Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
+  
+  if (selectedPlayers.length < 4 || selectedPlayers.length % 2 !== 0) {
+    alert("Debes seleccionar una cantidad PAR de entrenadores (Mínimo 4).");
+    return;
+  }
+
+  // Mezclar aleatoriamente
+  for (let i = selectedPlayers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [selectedPlayers[i], selectedPlayers[j]] = [selectedPlayers[j], selectedPlayers[i]];
+  }
+
+  state.teams = [];
+  firstSelectedForPair = null;
+
+  for (let i = 0; i < selectedPlayers.length; i += 2) {
+    const p1 = selectedPlayers[i];
+    const p2 = selectedPlayers[i + 1];
+    state.teams.push({
+      id: `team_${p1.id}_${p2.id}`,
+      nombre: `${p1.nombre} & ${p2.nombre}`,
+      p1: p1,
+      p2: p2,
+      nivel: Math.round((p1.nivel + p2.nivel) / 2)
+    });
+  }
+  updateUI();
+}
+
+btnAutoPair.addEventListener('click', autoPairTeams);
+btnClearTeams.addEventListener('click', () => {
+  state.teams = [];
+  firstSelectedForPair = null;
+  updateUI();
+});
+
+tourneyTypeSelect.addEventListener('change', () => {
+  state.tourneyType = tourneyTypeSelect.value;
+  updateUI();
+});
 
 searchInput.addEventListener('input', (e) => renderTrainers(e.target.value));
 
 btnGenerate.addEventListener('click', () => {
   state.tourneyType = tourneyTypeSelect ? tourneyTypeSelect.value : 'eliminatoria';
   
-  if (state.tourneyType === 'eliminatoria') {
+  if (state.tourneyType.includes('eliminatoria')) {
     generateBracketLogic();
   } else {
     generateRoundRobinLogic();
@@ -172,25 +346,28 @@ function generateRoundRobinLogic() {
   state.rrMatches = [];
   state.standings = [];
   
-  let players = Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
+  const is2v2 = state.tourneyType.includes('2vs2');
+  let participants = is2v2 
+    ? [...state.teams] 
+    : Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
   
-  players.forEach(p => {
+  participants.forEach(p => {
     state.standings.push({ ...p, wins: 0, losses: 0, matchesPlayed: 0 });
   });
 
-  if (players.length % 2 !== 0) {
-    players.push({ id: 'bye', nombre: 'DESCANSO', nivel: 0 });
+  if (participants.length % 2 !== 0) {
+    participants.push({ id: 'bye', nombre: 'DESCANSO', nivel: 0 });
   }
 
-  const numDays = players.length - 1;
-  const halfSize = players.length / 2;
+  const numDays = participants.length - 1;
+  const halfSize = participants.length / 2;
   let matchIdCounter = 1;
 
   for (let day = 0; day < numDays; day++) {
     let roundMatches = [];
     for (let i = 0; i < halfSize; i++) {
-      const p1 = players[i];
-      const p2 = players[players.length - 1 - i];
+      const p1 = participants[i];
+      const p2 = participants[participants.length - 1 - i];
 
       if (p1.id !== 'bye' && p2.id !== 'bye') {
         roundMatches.push({
@@ -202,7 +379,7 @@ function generateRoundRobinLogic() {
       }
     }
     state.rrMatches.push(roundMatches);
-    players.splice(1, 0, players.pop());
+    participants.splice(1, 0, participants.pop());
   }
 
   saveTournament();
@@ -213,11 +390,11 @@ function renderRoundRobin() {
   bracketVisual.innerHTML = '';
   bracketVisual.className = '';
   bracketVisual.style.display = 'grid';
-  bracketVisual.style.gridTemplateColumns = '1fr 350px'; 
+  bracketVisual.style.gridTemplateColumns = '1fr 380px'; 
   bracketVisual.style.gap = '2rem';
 
   const matchesSection = document.createElement('div');
-  matchesSection.innerHTML = '<h3 style="color: var(--accent); margin-bottom: 1rem;">📅 Calendario de Combates</h3>';
+  matchesSection.innerHTML = `<h3 style="color: var(--accent); margin-bottom: 1rem;">📅 Calendario de Combates ${state.tourneyType.includes('2vs2') ? '(2vs2)' : ''}</h3>`;
   
   state.rrMatches.forEach((round, index) => {
     const roundDiv = document.createElement('div');
@@ -247,7 +424,7 @@ function renderRoundRobin() {
     <thead>
       <tr style="border-bottom: 1px solid var(--border); color: var(--text-muted); text-align: left;">
         <th style="padding: 0.5rem;">Pos</th>
-        <th style="padding: 0.5rem;">Entrenador</th>
+        <th style="padding: 0.5rem;">${state.tourneyType.includes('2vs2') ? 'Pareja' : 'Entrenador'}</th>
         <th style="padding: 0.5rem; text-align: center;">V</th>
         <th style="padding: 0.5rem; text-align: center;">D</th>
       </tr>
@@ -291,18 +468,22 @@ function generateBracketLogic() {
   state.redemptionQueue = [];
   state.thirdPlaceMatch = null;
 
-  let players = Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
-  for (let i = players.length - 1; i > 0; i--) {
+  const is2v2 = state.tourneyType.includes('2vs2');
+  let participants = is2v2 
+    ? [...state.teams] 
+    : Array.from(state.selected).map(id => state.trainers.find(t => t.id === id));
+
+  for (let i = participants.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [players[i], players[j]] = [players[j], players[i]];
+      [participants[i], participants[j]] = [participants[j], participants[i]];
   }
   
-  const N = players.length;
+  const N = participants.length;
   const P = Math.pow(2, Math.floor(Math.log2(N))); 
   
   const playInCount = N - P; 
-  const playInPlayers = players.slice(0, playInCount * 2);
-  const byePlayers = players.slice(playInCount * 2);
+  const playInPlayers = participants.slice(0, playInCount * 2);
+  const byePlayers = participants.slice(playInCount * 2);
 
   state.bracket = [];
   
@@ -387,8 +568,9 @@ function renderBracket() {
   bracketVisual.style.flexDirection = 'column';
   bracketVisual.style.gap = '3rem'; 
 
+  const is2v2 = state.tourneyType.includes('2vs2');
   const mainSection = document.createElement('div');
-  mainSection.innerHTML = '<h3 style="margin-bottom: 1rem; color: var(--blue);">🏆 Torneo Principal</h3>';
+  mainSection.innerHTML = `<h3 style="margin-bottom: 1rem; color: var(--blue);">🏆 Torneo Principal ${is2v2 ? '(Equipos 2vs2)' : ''}</h3>`;
   
   const mainWrapper = document.createElement('div');
   mainWrapper.className = 'bracket-wrapper'; 
@@ -493,17 +675,17 @@ function createMatchHTML(match, roundIndex, matchType) {
   matchDiv.innerHTML = `
     <div class="match-player ${p1Class}" ${onclickP1}>
       <span>${match.p1 ? escapeHtml(match.p1.nombre) : 'TBD'}</span>
-      ${match.p1 ? `<small>Lvl ${match.p1.nivel}</small>` : ''}
+      ${match.p1 ? `<small>Nv. ${match.p1.nivel}</small>` : ''}
     </div>
     <div class="match-player ${p2Class}" ${onclickP2}>
       <span>${match.p2 ? escapeHtml(match.p2.nombre) : 'TBD'}</span>
-      ${match.p2 ? `<small>Lvl ${match.p2.nivel}</small>` : ''}
+      ${match.p2 ? `<small>Nv. ${match.p2.nivel}</small>` : ''}
     </div>
   `;
   return matchDiv;
 }
 
-// Procesador central: Maneja asignar y DESMARCAR para todos los tipos de torneos
+// Procesador central: Maneja asignar y DESMARCAR
 window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main') {
   let match, winnerPlayer, loserPlayer;
 
@@ -514,7 +696,7 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
 
   if (!match) return;
 
-  // ── LÓGICA DE DESMARCAR (UNDO) ──
+  // DESMARCAR (UNDO)
   if (match.winner) {
     if (match.winner.id !== match[playerSlot].id) {
       alert("Para cambiar de ganador, primero haz clic sobre el ganador actual para desmarcarlo.");
@@ -613,7 +795,7 @@ window.setWinner = function(roundIndex, matchId, playerSlot, matchType = 'main')
     return;
   }
 
-  // ── LÓGICA DE MARCAR GANADOR ──
+  // MARCAR GANADOR
   winnerPlayer = match[playerSlot];
   loserPlayer = match[playerSlot === 'p1' ? 'p2' : 'p1'];
   match.winner = winnerPlayer;
@@ -657,5 +839,4 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
-// Iniciar aplicación
 loadTrainersFromDB();

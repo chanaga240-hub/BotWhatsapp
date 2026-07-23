@@ -208,6 +208,10 @@ class BotManager extends EventEmitter {
         textoMinuscula === '#incubadora' ||
         textoMinuscula.startsWith('#campo') ||
         textoMinuscula.startsWith('#sacrificio') ||
+        textoMinuscula.startsWith('#mazmorra') ||
+        textoMinuscula.startsWith('#tagbattle') ||  
+        textoMinuscula.startsWith('#tagaccept') ||   
+        textoMinuscula.startsWith('#tagswitch') ||
         textoMinuscula === '#help';
 
       if (!esComando) return;
@@ -218,6 +222,16 @@ class BotManager extends EventEmitter {
         const chatName = msg.from; 
 
         this.log(`Comando recibido (${origen}) en "${chatName}": ${texto} [ID Real: ${whatsappId}]`, 'command');
+
+        // ==========================================
+        // COMANDO: #tagbattle (2vs2 Multijugador)
+        // ==========================================
+        if (textoMinuscula.startsWith('#tagbattle') || 
+            textoMinuscula.startsWith('#tagaccept') || 
+            textoMinuscula.startsWith('#tagswitch')) {
+          const { handleTagBattle } = require('../commands/tagbattle');
+          return await handleTagBattle(msg, texto);
+        }
 
         // ==========================================
         // COMANDO: #pokeregister
@@ -300,6 +314,19 @@ class BotManager extends EventEmitter {
         if (textoMinuscula.startsWith('#sacrificio')) {
           const { handleSacrificio } = require('../commands/sacrificio');
           return await handleSacrificio(msg, texto);
+        }
+
+        // ==========================================
+        // COMANDO: #mazmorra
+        // ==========================================
+        if (textoMinuscula.startsWith('#mazmorra')) {
+          // Importamos usando destructuración porque en mazmorra.js lo exportamos como 'execute'
+          const { execute: handleMazmorra } = require('../commands/mazmorra');
+          
+          // Separamos los argumentos. Ej: "#mazmorra puerta 1" -> args = ["puerta", "1"]
+          const args = texto.trim().split(/\s+/).slice(1);
+          
+          return await handleMazmorra(this.client, msg, args);
         }
 
         // ==========================================

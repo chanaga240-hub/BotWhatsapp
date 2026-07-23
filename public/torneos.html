@@ -33,15 +33,17 @@
           <div class="tournament-type" style="margin-bottom: 1.5rem;">
             <label style="color: var(--text-muted); font-size: 0.9rem;">Formato del Torneo:</label>
             <select id="tourneyType" style="width: 100%; padding: 0.8rem; background: rgba(15,23,42,0.8); border: 1px solid var(--border); color: white; border-radius: 8px; margin-top: 0.5rem; outline: none;">
-              <option value="eliminatoria">Eliminación Directa</option>
-              <option value="roundrobin">Todos contra Todos (Liga)</option>
+              <option value="eliminatoria">Eliminación Directa (1vs1)</option>
+              <option value="roundrobin">Todos contra Todos (Liga 1vs1)</option>
+              <option value="eliminatoria_2vs2">Eliminación Directa (Equipos 2vs2)</option>
+              <option value="roundrobin_2vs2">Todos contra Todos (Liga 2vs2)</option>
             </select>
           </div>
 
           <div class="panel-head">
             <div>
               <h3>Selección de Participantes</h3>
-              <p>Elige al menos 3 entrenadores para generar el bracket.</p>
+              <p id="selectionInstruction">Elige entrenadores para el torneo.</p>
             </div>
             <div class="counter-badge">
               Seleccionados: <strong id="selectedCount">0</strong>
@@ -53,7 +55,37 @@
           </div>
 
           <div class="trainer-grid" id="trainerGrid">
+          </div>
+
+          <div id="teamsBuilderSection" style="display: none; margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div>
+                <h4 style="color: var(--accent-cyan); font-size: 1.1rem;">👥 Creador de Parejas (2vs2)</h4>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">
+                  Haz clic en dos entrenadores seleccionados para formar una pareja, o usa el botón automático.
+                </p>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button id="btnAutoPair" class="btn-ghost" style="font-size: 0.8rem;">⚡ Emparejar Aleatorio</button>
+                <button id="btnClearTeams" class="btn-ghost" style="font-size: 0.8rem; color: var(--red); border-color: rgba(239,68,68,0.3);">🗑️ Desarmar Parejas</button>
+              </div>
             </div>
+
+            <!-- Indicador del primer jugador seleccionado para formar pareja -->
+            <div id="pairingStatus" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--yellow); font-family: var(--font-mono); min-height: 24px;"></div>
+
+            <!-- Contenedor con dos columnas: Entrenadores Disponibles vs Parejas Armadas -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+              <div>
+                <h5 style="color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.8rem;">Sin Pareja</h5>
+                <div id="unpairedGrid" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 250px; overflow-y: auto;"></div>
+              </div>
+              <div>
+                <h5 style="color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.8rem;">Parejas Confirmadas</h5>
+                <div id="teamsListGrid" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 250px; overflow-y: auto;"></div>
+              </div>
+            </div>
+          </div>
 
           <div class="action-bar">
             <button id="btnGenerate" class="btn-cyber" disabled>

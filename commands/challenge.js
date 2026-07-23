@@ -62,12 +62,65 @@ async function handlePokechallenge(msg, texto) {
     const npc = npcRows[0];
 
     // Buscar Pokémon Aleatorio en la API
-    const idAleatorio = randomPokemonId();
     let pokeDataNPC;
     try {
-      pokeDataNPC = await consultarPokemon(idAleatorio);
+      // Consultar cuál es el ID máximo de los Pokémon custom
+      const [customCheck] = await db.execute('SELECT MAX(id) as maxId FROM pokemon_personalizados');
+      const maxCustomId = customCheck[0].maxId;
+
+      let esCustom = false;
+      let idGenerado = 0;
+
+      // 20% de probabilidad de que el NPC saque un Pokémon Personalizado[cite: 65]
+      // Condicionado a que exista al menos el registro 20001
+      if (maxCustomId && maxCustomId >= 20001 && Math.random() < 0.20) {
+        esCustom = true;
+        // Genera un ID entre 20001 y el maxCustomId[cite: 65]
+        idGenerado = Math.floor(Math.random() * (maxCustomId - 20000)) + 20001; 
+      } else {
+        idGenerado = randomPokemonId(); // Pokémon oficial
+      }
+
+      if (esCustom) {
+        // Buscar el Pokémon Custom generado[cite: 65]
+        let [customRows] = await db.execute('SELECT * FROM pokemon_personalizados WHERE id = ? LIMIT 1', [idGenerado]);
+        
+        // Respaldo de seguridad: si ese ID fue borrado, toma uno al azar de la tabla
+        if (customRows.length === 0) {
+          [customRows] = await db.execute('SELECT * FROM pokemon_personalizados ORDER BY RAND() LIMIT 1');
+        }
+
+        if (customRows.length > 0) {
+          const p = customRows[0];
+          
+          // Reconstruir los datos para que el motor de combate lo lea como PokéAPI[cite: 65]
+          pokeDataNPC = {
+              id: p.cod_pokedex || p.id,
+              name: p.nombre,
+              types: [{ type: { name: p.type1 } }],
+              stats: [
+                  { base_stat: p.hp, stat: { name: 'hp' } },
+                  { base_stat: p.ataque, stat: { name: 'attack' } },
+                  { base_stat: p.defensa, stat: { name: 'defense' } },
+                  { base_stat: p.ataque_especial, stat: { name: 'special-attack' } },
+                  { base_stat: p.defensa_especial, stat: { name: 'special-defense' } },
+                  { base_stat: p.velocidad, stat: { name: 'speed' } }
+              ]
+          };
+          if (p.type2) {
+              pokeDataNPC.types.push({ type: { name: p.type2 } });
+          }
+        } else {
+          // Si la tabla estuviera vacía, asegura un oficial[cite: 64]
+          pokeDataNPC = await consultarPokemon(randomPokemonId());
+        }
+      } else {
+        // Búsqueda de Pokémon Oficial (1-1025)[cite: 64]
+        pokeDataNPC = await consultarPokemon(idGenerado); 
+      }
     } catch (e) {
-      return await msg.reply('⚠️ Error al obtener el Pokémon del rival desde la PokéAPI.');
+      console.error("Error al generar Pokémon rival:", e);
+      return await msg.reply('⚠️ Error al obtener el Pokémon del rival.');
     }
 
     // Calcular un Nivel Justo (Promedio del jugador +/- 2 niveles)
