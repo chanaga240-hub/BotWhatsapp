@@ -65,7 +65,7 @@ async function handlePokechallenge(msg, texto) {
     let pokeDataNPC;
     try {
       // Consultar cuál es el ID máximo de los Pokémon custom
-      const [customCheck] = await db.execute('SELECT MAX(id) as maxId FROM pokemon_personalizados');
+      const [customCheck] = await db.execute('SELECT MAX(cod_pokedex) as maxId FROM pokemon_personalizados');
       const maxCustomId = customCheck[0].maxId;
 
       let esCustom = false;
@@ -83,7 +83,7 @@ async function handlePokechallenge(msg, texto) {
 
       if (esCustom) {
         // Buscar el Pokémon Custom generado[cite: 65]
-        let [customRows] = await db.execute('SELECT * FROM pokemon_personalizados WHERE id = ? LIMIT 1', [idGenerado]);
+        let [customRows] = await db.execute('SELECT * FROM pokemon_personalizados WHERE cod_pokedex = ? LIMIT 1', [idGenerado]);
         
         // Respaldo de seguridad: si ese ID fue borrado, toma uno al azar de la tabla
         if (customRows.length === 0) {
