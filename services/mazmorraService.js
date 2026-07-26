@@ -34,7 +34,7 @@ async function validarEIngresarMazmorra(whatsappId) {
 
         const ultima = usuarios[0].fecha_mazmorra ? new Date(usuarios[0].fecha_mazmorra) : null;
         const ahora = new Date();
-        const cooldownMs = 12 * 60 * 60 * 1000; 
+        const cooldownMs = 10 * 60 * 60 * 1000; 
 
         if (ultima && (ahora - ultima) < cooldownMs) {
             const restanteMs = cooldownMs - (ahora - ultima);
@@ -79,19 +79,19 @@ async function generarEquipoEnemigo(rondaActual = 1) {
 
             if (rondaActual === 1) {
                 poolSeleccionado = (Math.random() * 100 <= 80) ? segurosPrimeraFase : segurosEvolucionados;
-                minNivel = 5; maxNivel = 10;
+                minNivel = 1; maxNivel = 5;
             } else if (rondaActual === 2) {
                 poolSeleccionado = (Math.random() * 100 <= 40) ? segurosPrimeraFase : segurosEvolucionados;
-                minNivel = 10; maxNivel = 15;
+                minNivel = 5; maxNivel = 10;
             } else if (rondaActual === 3) {
                 poolSeleccionado = segurosEvolucionados;
-                minNivel = 15; maxNivel = 20;
+                minNivel = 10; maxNivel = 15;
             } else if (rondaActual === 4) {
-                poolSeleccionado = segurosUltimaFase;
-                minNivel = 20; maxNivel = 25;
+                poolSeleccionado = segurosEvolucionados;
+                minNivel = 15; maxNivel = 20;
             } else {
                 poolSeleccionado = segurosUltimaFase;
-                minNivel = 25; maxNivel = 30;
+                minNivel = 20; maxNivel = 25;
             }
 
             let disponibles = poolSeleccionado.filter(p => !seleccionados.has(p.id));

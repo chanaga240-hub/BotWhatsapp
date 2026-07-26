@@ -5,7 +5,7 @@ const campoService = require('../services/campoService');
 const db = require('../services/database');
 const { buscarPokemonPorTipo } = require('../services/pokeapi');
 
-const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno', 'Ground':'Tierra', 'Ghost':'Fantasma', 'Flying':'Volador', 'Steel':'Acero', 'Bug':'Bicho' };
+const TRADUCTOR_TIPOS = { 'normal': 'Normal', 'fire': 'Fuego', 'water': 'Agua', 'Electric': 'Electrico', 'Grass':'Planta', 'Ice':'Hielo', 'Poison':'Veneno', 'Ground':'Tierra', 'Ghost':'Fantasma', 'Flying':'Volador', 'Steel':'Acero', 'Bug':'Bicho', 'Fairy':'Hada'};
 global.campoPokemonPendiente = new Map();
 
 async function handleCampo(msg, textoCompleto) {
@@ -91,8 +91,23 @@ async function handleCampo(msg, textoCompleto) {
                 await msg.reply('💰 ¡Encontraste 50 de monedas!');
                 break;
             case 'pocion_xp_small':
-                await db.execute('UPDATE inventario SET pocion_xp_small = pocion_xp_small + 1 WHERE usuario_id = ?', [usuario.id]);
+                // Verificamos si tiene inventario para evitar errores
+                const [invPocion] = await db.execute('SELECT id FROM inventario WHERE usuario_id = ?', [usuario.id]);
+                if (invPocion.length === 0) {
+                    await db.execute('INSERT INTO inventario (usuario_id, pocion_xp_small) VALUES (?, 1)', [usuario.id]);
+                } else {
+                    await db.execute('UPDATE inventario SET pocion_xp_small = pocion_xp_small + 1 WHERE usuario_id = ?', [usuario.id]);
+                }
                 await msg.reply('🧪 ¡Encontraste una Poción XP!');
+                break;
+            case 'llave_mazmorra': // <--- AQUÍ ESTÁ EL NUEVO CASO PARA LA LLAVE
+                const [invLlave] = await db.execute('SELECT id FROM inventario WHERE usuario_id = ?', [usuario.id]);
+                if (invLlave.length === 0) {
+                    await db.execute('INSERT INTO inventario (usuario_id, llave_mazmorra) VALUES (?, 1)', [usuario.id]);
+                } else {
+                    await db.execute('UPDATE inventario SET llave_mazmorra = llave_mazmorra + 1 WHERE usuario_id = ?', [usuario.id]);
+                }
+                await msg.reply('🗝️ ¡Increíble! Encontraste una *Llave de Mazmorra* brillante escondida entre la maleza.');
                 break;
             case 'pokemon':
                 const poke = await buscarPokemonPorTipo(tipoCampo);
@@ -100,10 +115,10 @@ async function handleCampo(msg, textoCompleto) {
                 
                 // 1. Obtener la imagen (usando la misma lógica de pokeapi/reply)
                 const { getImagen } = require('../services/pokeapi');
-                const { getMediaFromUrlWithCache } = require('../services/reply'); // O tu método para obtener imagen
+                const { getMediaFromUrlWithCache } = require('../services/reply'); 
                 
                 const imageUrl = getImagen(poke);
-                const media = await getMediaFromUrlWithCache(imageUrl); // Esto descarga o trae de cache la imagen
+                const media = await getMediaFromUrlWithCache(imageUrl); 
 
                 // 2. Enviar mensaje CON la imagen
                 await msg.reply(media, undefined, { 

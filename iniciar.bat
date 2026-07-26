@@ -1,42 +1,35 @@
 @echo off
-title Bot Pokemon WhatsApp
-cd /d "%~dp0"
+:: Comprobar si hay permisos de Administrador
+>nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 
-echo.
-echo ========================================
-echo   Bot Pokemon WhatsApp
-echo ========================================
-echo Carpeta: %CD%
-echo.
+:: Si no hay permisos, solicitar elevación
+if '%errorlevel%' NEQ '0' (
+    echo Solicitando permisos de Administrador...
+    goto UACPrompt
+) else ( goto gotAdmin )
 
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Node.js no esta instalado.
-    echo Descargalo desde: https://nodejs.org
-    pause
-    exit /b 1
-)
+:UACPrompt
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs"
+    echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadmin.vbs"
+    "%temp%\getadmin.vbs"
+    exit /B
 
-if not exist "node_modules\" (
-    echo No hay dependencias instaladas.
-    echo Ejecuta primero: instalar.bat
-    echo.
-    pause
-    exit /b 1
-)
+:gotAdmin
+    if exist "%temp%\getadmin.vbs" ( del "%temp%\getadmin.vbs" )
+    pushd "%CD%"
+    CD /D "%~dp0"
 
-echo Iniciando servidor...
-echo.
-echo   Panel web: http://localhost:3000
-echo.
-echo   Abre esa direccion en tu navegador.
-echo   NO cierres esta ventana mientras uses el bot.
-echo   Para detener: Ctrl+C o cierra esta ventana.
-echo.
-echo ========================================
-echo.
+:: ---------------------------------------------------
+:: A PARTIR DE AQUÍ ESTÁ EL CÓDIGO DE TU BOT
+:: ---------------------------------------------------
 
-call npm start
+echo Limpiando PM2 y procesos atascados...
+taskkill /F /IM chrome.exe /T >nul 2>&1
+call pm2 kill >nul 2>&1
 
-echo.
-pause
+echo Iniciando el Bot de WhatsApp...
+cd C:\Users\USER\Desktop\BotWhatsapp
+call pm2 start index.js --name "BotWhatsapp"
+
+echo Abriendo el panel de control...
+start http://localhost:3000

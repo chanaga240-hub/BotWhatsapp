@@ -485,7 +485,7 @@ async function asignarEquipoPokemon(whatsappId, jerarquia, nombrePokemon) {
 async function obtenerEquipoPokemon(whatsappId) {
   try {
     const query = `
-      SELECT ep.jerarquia, ep.estado, pa.id AS atrapado_id, pa.pokemon_id, pa.nombre, pa.nivel, pa.fecha_ultimo_combate
+      SELECT ep.jerarquia, ep.estado, pa.id AS atrapado_id, pa.pokemon_id, pa.nombre, pa.nivel, pa.experiencia, pa.fecha_ultimo_combate
       FROM equipo_pokemon ep
       JOIN usuarios u ON ep.usuario_id = u.id
       JOIN pokemon_atrapados pa ON ep.pokemon_id = pa.id

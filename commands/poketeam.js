@@ -1,4 +1,8 @@
 const pokemonService = require('../services/pokemonService');
+const { consultarPokemon, getStat, getImagen, getTiposEspanol } = require('../services/pokeapi');
+// Importamos la nueva función generarImagenPoketeam
+const { generarImagenPoketeam } = require('../services/canvasService');
+const { MessageMedia } = require('whatsapp-web.js');
 
 async function handlePoketeam(msg, texto) {
     const isGroup = msg.from.endsWith('@g.us');
@@ -11,32 +15,68 @@ async function handlePoketeam(msg, texto) {
     if (args.length === 1 && args[0].toLowerCase() === '#poketeam') {
         const equipo = await pokemonService.obtenerEquipoPokemon(whatsappId);
         
-        let mensaje = '🏕️ *TU EQUIPO POKÉMON* 🏕️\n\n';
         let hayPokemon = false;
+        
+        // Creamos un array fijo de 6 posiciones inicializado en null
+        const equipoPreparado = [null, null, null, null, null, null];
 
-        // Pintamos siempre los 6 slots para que vea la estructura
+        // Preparamos los datos del canvas
         for (let i = 1; i <= 6; i++) {
             const miembro = equipo.find(m => m.jerarquia === i);
             if (miembro) {
-                mensaje += `${i}. *${miembro.nombre}* (Nv. ${miembro.nivel || 1}) - _[${miembro.estado}]_\n`;
                 hayPokemon = true;
-            } else {
-                mensaje += `${i}. [ --- Vacío --- ]\n`;
+                
+                // Preparar datos estadísticos para el canvas en su slot correcto (i - 1)
+                try {
+                    let idApi = (miembro.pokemon_id && miembro.pokemon_id < 1500) ? miembro.pokemon_id : miembro.nombre.toLowerCase().trim();
+                    const dataApi = await consultarPokemon(idApi);
+                    
+                    const multNivel = 1 + ((miembro.nivel || 1) - 1) * 0.05;
+                    
+                    equipoPreparado[i - 1] = {
+                        nombre: miembro.nombre,
+                        nivel: miembro.nivel || 1,
+                        experiencia: miembro.experiencia || 0,
+                        tipos: getTiposEspanol(dataApi), 
+                        hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
+                        atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
+                        def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),
+                        spAtk: Math.floor((getStat(dataApi, 'special-attack') || 0) * multNivel),
+                        spDef: Math.floor((getStat(dataApi, 'special-defense') || 0) * multNivel),
+                        vel: Math.floor((getStat(dataApi, 'speed') || 0)),
+                        spriteUrl: getImagen(dataApi)
+                    };
+                } catch (e) {
+                    console.error(`Error preparando pokemon para canvas en poketeam:`, e);
+                }
             }
         }
 
+        // Si el equipo está vacío, solo enviamos el texto de ayuda
         if (!hayPokemon) {
-            mensaje += '\n_Tu equipo está vacío. Asígnales una posición por chat privado:_\n👉 *#poketeam join 1 [nombre]*';
+            return await msg.reply('🏕️ *TU EQUIPO POKÉMON* 🏕️\n\n_Tu equipo está vacío. Asígnales una posición por chat privado:_\n👉 *#poketeam join 1 [nombre]*');
         }
 
-        return await msg.reply(mensaje);
+        // Avisamos al usuario que se está generando la imagen
+        await msg.reply('⏳ Sacando una fotografía a tu equipo ordenado...');
+
+        try {
+            // Generamos la imagen con la nueva función respetando los IDs
+            const imageBuffer = await generarImagenPoketeam(equipoPreparado);
+            const media = new MessageMedia('image/png', imageBuffer.toString('base64'), 'poketeam_slots.png');
+            
+            // Enviamos la imagen con un título simple
+            return await msg.reply(media, undefined, { caption: '🏕️ *TU EQUIPO POKÉMON* 🏕️' });
+        } catch (err) {
+            console.error('Error generando imagen de poketeam ordenado:', err);
+            return await msg.reply('⚠️ _(No se pudo generar la imagen del equipo)_');
+        }
     }
 
     // ==========================================
     // 2. ASIGNAR POKÉMON (#poketeam join X Nombre)
     // ==========================================
     if (args.length >= 2 && args[1].toLowerCase() === 'join') {
-        // Validación estricta: NO grupos
         if (isGroup) {
             return await msg.reply('❌ La gestión de tu equipo (*#poketeam join*) solo se puede realizar por *chat privado*.');
         }
@@ -46,7 +86,6 @@ async function handlePoketeam(msg, texto) {
             return await msg.reply('❌ Debes especificar una posición válida del *1 al 6*.\n👉 Ejemplo: *#poketeam join 1 Pikachu*');
         }
 
-        // Unir el resto de los argumentos por si el Pokémon tiene nombres compuestos (ej. Tapu Koko)
         const nombrePokemon = args.slice(3).join(' ');
         if (!nombrePokemon) {
              return await msg.reply('❌ Debes especificar el nombre del Pokémon.\n👉 Ejemplo: *#poketeam join 1 Pikachu*');

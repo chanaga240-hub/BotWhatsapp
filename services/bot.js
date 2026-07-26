@@ -212,6 +212,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#tagbattle') ||  
         textoMinuscula.startsWith('#tagaccept') ||   
         textoMinuscula.startsWith('#tagswitch') ||
+        textoMinuscula.startsWith('#give') ||
         textoMinuscula === '#help';
 
       if (!esComando) return;
@@ -222,6 +223,14 @@ class BotManager extends EventEmitter {
         const chatName = msg.from; 
 
         this.log(`Comando recibido (${origen}) en "${chatName}": ${texto} [ID Real: ${whatsappId}]`, 'command');
+
+        // ==========================================
+        // COMANDO: #give (Donar objetos)
+        // ==========================================
+        if (textoMinuscula.startsWith('#give')) {
+          const { handleGive } = require('../commands/give');
+          return await handleGive(msg, texto);
+        }
 
         // ==========================================
         // COMANDO: #tagbattle (2vs2 Multijugador)
@@ -693,7 +702,7 @@ class BotManager extends EventEmitter {
                     def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),
                     spAtk: Math.floor((getStat(dataApi, 'special-attack') || 0) * multNivel),
                     spDef: Math.floor((getStat(dataApi, 'special-defense') || 0) * multNivel),
-                    vel: Math.floor((getStat(dataApi, 'speed') || 0) * multNivel),
+                    vel: Math.floor((getStat(dataApi, 'speed') || 0)),
                     spriteUrl: getImagen(dataApi)
                   });
                 }

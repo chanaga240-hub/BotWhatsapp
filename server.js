@@ -115,12 +115,31 @@ app.get('/api/pokedex/:usuarioId', async (req, res) => {
       try {
         const data = await consultarPokemon(p.pokemon_id);
         const imagen = getImagen(data);
+        
+        const nivelActual = p.nivel || 1;
+        const multNivel = 1 + (nivelActual - 1) * 0.05;
+
         const stats = Array.isArray(data.stats)
-          ? data.stats.map((stat) => ({
-              name: stat?.stat?.name || 'unknown',
-              value: stat?.base_stat || 0
-            }))
+          ? data.stats.map((stat) => {
+              const statName = stat?.stat?.name || 'unknown';
+              const baseValue = stat?.base_stat || 0;
+              let finalValue = baseValue;
+
+              if (statName === 'hp') {
+                finalValue = Math.floor(baseValue * 2 * multNivel);
+              } else if (statName === 'speed') {
+                finalValue = Math.floor(baseValue);
+              } else {
+                finalValue = Math.floor(baseValue * multNivel);
+              }
+
+              return {
+                name: statName,
+                value: finalValue
+              };
+            })
           : [];
+
         const tipos = Array.isArray(data.types)
           ? data.types.map((typeSlot) => typeSlot?.type?.name || 'unknown')
           : [];
@@ -156,6 +175,131 @@ app.get('/api/pokedex/:usuarioId', async (req, res) => {
     console.error('ERROR EN POKEDEX:', err);
     res.status(500).json({ error: 'Error al consultar Pokédex' });
   }
+});
+
+app.get('/api/inventario-campos', async (req, res) => {
+  try {
+    const [columns] = await db.execute("SHOW COLUMNS FROM inventario");
+    const inventarioCampos = columns
+      .map(col => col.Field)
+      .filter(field => field !== 'id' && field !== 'usuario_id');
+
+    const todosLosCampos = ['monedas', 'pokeballs', ...inventarioCampos];
+    res.json(todosLosCampos);
+  } catch (err) {
+    console.error('Error al obtener columnas de inventario:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================================
+// NUEVO: ENVIAR PAQUETE MULTIPLE CON AVISO POR WHATSAPP
+// ==========================================================
+app.post('/api/give-package', async (req, res) => {
+  const { usuarioId, paquete } = req.body;
+
+  if (!usuarioId || !Array.isArray(paquete) || paquete.length === 0) {
+    return res.status(400).json({ error: 'Parámetros de entrega inválidos' });
+  }
+
+  const connection = await db.getConnection();
+  let whatsappId = null;
+
+  try {
+    await connection.beginTransaction();
+
+    // 1. Obtener whatsapp_id del usuario
+    const [userRows] = await connection.execute('SELECT whatsapp_id FROM usuarios WHERE id = ?', [usuarioId]);
+    if (userRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    whatsappId = userRows[0].whatsapp_id;
+
+    const [columns] = await connection.execute("SHOW COLUMNS FROM inventario");
+    const validFields = columns.map(col => col.Field);
+
+    const [invRows] = await connection.execute('SELECT id FROM inventario WHERE usuario_id = ? FOR UPDATE', [usuarioId]);
+    const necesitaInsertInventario = invRows.length === 0;
+
+    let insertFields = ['usuario_id'];
+    let insertValues = [usuarioId];
+    let insertPlaceholders = ['?'];
+    const updatesInventario = [];
+
+    // Procesamos el carrito
+    for (const reqItem of paquete) {
+      const item = reqItem.item;
+      const cantNum = parseInt(reqItem.cantidad);
+
+      if (isNaN(cantNum) || cantNum <= 0) continue;
+
+      if (item === 'monedas' || item === 'pokeballs') {
+        await connection.execute(`UPDATE usuarios SET ${item} = ${item} + ? WHERE id = ?`, [cantNum, usuarioId]);
+      } else if (validFields.includes(item)) {
+        if (necesitaInsertInventario) {
+          insertFields.push(item);
+          insertValues.push(cantNum);
+          insertPlaceholders.push('?');
+        } else {
+          updatesInventario.push({ field: item, value: cantNum });
+        }
+      } else {
+        throw new Error(`Objeto inválido detectado: ${item}`);
+      }
+    }
+
+    if (necesitaInsertInventario && insertFields.length > 1) {
+      const query = `INSERT INTO inventario (${insertFields.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
+      await connection.execute(query, insertValues);
+    } else if (!necesitaInsertInventario && updatesInventario.length > 0) {
+      for (const up of updatesInventario) {
+         await connection.execute(`UPDATE inventario SET ${up.field} = ${up.field} + ? WHERE usuario_id = ?`, [up.value, usuarioId]);
+      }
+    }
+
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    console.error('Error entregando paquete por panel:', err);
+    return res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
+  }
+
+  // =====================================
+  // ENVIAR MENSAJE DE WHATSAPP AL USUARIO (CORREGIDO)
+  // =====================================
+  try {
+    if (bot && bot.client && whatsappId) {
+      let mensajeWpp = `🎁 *¡HAS RECIBIDO UN PAQUETE DE REGALO!* 🎁\n\nLos administradores te han enviado un paquete especial. Contiene:\n\n`;
+      
+      paquete.forEach(p => {
+         const nombreBonito = p.item.toUpperCase().replace(/_/g, ' ');
+         mensajeWpp += `• *${p.cantidad}x* ${nombreBonito}\n`;
+      });
+      
+      mensajeWpp += `\n_Tus objetos ya han sido guardados en tu inventario. ¡Disfrútalos!_`;
+
+      // ----------------------------------------------------
+      // SOLUCIÓN: Limpiamos el ID multi-dispositivo (Los ":" )
+      // ----------------------------------------------------
+      const cleanId = whatsappId.split(':')[0];
+      const chatId = cleanId.includes('@') ? cleanId : `${cleanId}@c.us`;
+
+      console.log(`\n[Panel] Intentando notificar regalo a WhatsApp: ${chatId}`);
+      await bot.client.sendMessage(chatId, mensajeWpp);
+      console.log(`[Panel] Notificación enviada con éxito a ${chatId}`);
+      bot.log(`Se entregó un paquete de regalo y se notificó a ${cleanId}`, 'info');
+      
+    } else {
+      console.warn(`[Panel] No se pudo enviar WhatsApp. Cliente listo? ${!!(bot && bot.client)} | ID: ${whatsappId}`);
+    }
+  } catch (errMsg) {
+    console.error('[Panel] Error enviando mensaje de WhatsApp tras regalo:', errMsg);
+  }
+
+  res.json({ success: true });
 });
 
 module.exports = { startServer };
