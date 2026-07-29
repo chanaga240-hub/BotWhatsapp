@@ -302,4 +302,87 @@ app.post('/api/give-package', async (req, res) => {
   res.json({ success: true });
 });
 
+
+// ==========================================================
+// NUEVO: CONSULTAR EFECTIVIDAD DIRECTAMENTE DESDE LA BASE DE DATOS
+// ==========================================================
+app.get('/api/efectividad', async (req, res) => {
+  const tiposStr = req.query.tipos;
+  if (!tiposStr) return res.json({ ofensivo: {}, defensivo: {}, inmunidades: {} });
+  const tipos = tiposStr.split(',');
+
+  try {
+    // 1. DEFENSIVO & INMUNIDADES (Recibidas)
+    const [todosLosTipos] = await db.execute('SELECT DISTINCT atacante_nombre as nombre FROM tipos_relaciones WHERE atacante_nombre IS NOT NULL');
+    const multiplicadoresDef = {};
+    for(let t of todosLosTipos) {
+        multiplicadoresDef[t.nombre] = 1;
+    }
+
+    const placeholders = tipos.map(() => '?').join(',');
+    const [relacionesDef] = await db.execute(`
+      SELECT atacante_nombre as atacante, multiplicador 
+      FROM tipos_relaciones 
+      WHERE defensor_nombre IN (${placeholders})
+    `, tipos);
+
+    // Multiplicamos cruzado según los tipos que defienden
+    relacionesDef.forEach(rel => {
+      if (multiplicadoresDef[rel.atacante] !== undefined) {
+         multiplicadoresDef[rel.atacante] *= parseFloat(rel.multiplicador);
+      }
+    });
+
+    // Corrección neutral
+    Object.keys(multiplicadoresDef).forEach(k => {
+       if (Math.abs(multiplicadoresDef[k] - 0.9375) < 0.001) multiplicadoresDef[k] = 1;
+    });
+
+    const defensivo = { weak4x: [], weak2x: [], resist2x: [], resist4x: [] };
+    const no_me_hacen_dano = [];
+
+    Object.entries(multiplicadoresDef).forEach(([type, mult]) => {
+        if (mult >= 1.5) defensivo.weak4x.push(type);
+        else if (mult === 1.25) defensivo.weak2x.push(type);
+        else if (mult === 0.75) defensivo.resist2x.push(type);
+        else if (mult > 0 && mult <= 0.6) defensivo.resist4x.push(type);
+        else if (mult === 0) no_me_hacen_dano.push(type);
+    });
+
+    // 2. OFENSIVO & INMUNIDADES (Causadas)
+    const ofensivo = {};
+    const no_hago_dano = [];
+
+    // Evaluamos los ataques por CADA TIPO que tiene el Pokémon
+    for (const miTipo of tipos) {
+       ofensivo[miTipo] = { fuerte: [], debil: [] };
+       
+       const [relacionesOf] = await db.execute(`
+         SELECT defensor_nombre as defensor, multiplicador 
+         FROM tipos_relaciones 
+         WHERE atacante_nombre = ?
+       `, [miTipo]);
+
+       relacionesOf.forEach(rel => {
+          const mult = parseFloat(rel.multiplicador);
+          if (mult === 1.25) ofensivo[miTipo].fuerte.push(rel.defensor);
+          else if (mult === 0.75) ofensivo[miTipo].debil.push(rel.defensor);
+          else if (mult === 0) no_hago_dano.push({ mi_tipo: miTipo, defensor: rel.defensor });
+       });
+    }
+
+    res.json({
+       defensivo,
+       ofensivo,
+       inmunidades: {
+          no_me_hacen_dano,
+          no_hago_dano
+       }
+    });
+  } catch (err) {
+    console.error('Error en api/efectividad:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = { startServer };

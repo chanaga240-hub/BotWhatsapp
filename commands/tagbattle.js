@@ -7,10 +7,6 @@ const { generarImagenVersus } = require('../services/canvasService');
 const pendingTagBattles = new Map();
 const activeTagBattles = new Map();
 
-function getNombre(msg) {
-    return msg._data?.notifyName || msg.pushname || 'Entrenador';
-}
-
 function verificarDescansoEquipo(equipo) {
     const cooldownMs = 5 * 60 * 1000;
     const ahora = new Date();
@@ -199,8 +195,8 @@ async function ejecutarMatchupTag(battleId, msgContext) {
     }
 
     cronica += `\n⚠️ *LA BATALLA CONTINÚA* ⚠️\n`;
-    if (tA.necesitaCambioId) cronica += `👉 *${tA.players[tA.activeIndex].name}*, elige tu relevo usando: *#tagswitch [1-6]*\n`;
-    if (tB.necesitaCambioId) cronica += `👉 *${tB.players[tB.activeIndex].name}*, elige tu relevo usando: *#tagswitch [1-6]*\n`;
+    if (tA.necesitaCambioId) cronica += `👉 *${tA.players[tA.activeIndex].name}*, elige tu relevo usando: *#tagswitch [nombre_o_posicion]*\n`;
+    if (tB.necesitaCambioId) cronica += `👉 *${tB.players[tB.activeIndex].name}*, elige tu relevo usando: *#tagswitch [nombre_o_posicion]*\n`;
 
     const bufferVersusCont = await generarImagenVersus({ nombre: pokeA.nombre, url: pokeA.urlImagen }, { nombre: pokeB.nombre, url: pokeB.urlImagen });
     const mediaCont = new MessageMedia('image/png', bufferVersusCont.toString('base64'), 'batalla_vs.png');
@@ -218,82 +214,174 @@ async function handleTagBattle(msg, texto) {
     const cmd = args[0].toLowerCase();
     const remitenteId = (msg.author || msg.from).split('@')[0].split(':')[0];
 
+    // Consultamos la BD para obtener el nombre real del usuario que envía el comando
+    const remitenteBD = await usuarioService.obtenerUsuario(remitenteId);
+    if (!remitenteBD) return await msg.reply('❌ No estás registrado.');
+    const remitenteNombre = remitenteBD.nombre_whatsapp;
+
     // ==========================================
-    // 1. INICIAR DUELO 2vs2
+    // 1. INICIAR DUELO 2vs2 (CREAR EQUIPO AZUL)
     // ==========================================
     if (cmd === '#tagbattle') {
-        if (!msg.mentionedIds || msg.mentionedIds.length !== 3) {
-            return await msg.reply('❌ Debes mencionar a 3 personas: a tu aliado y a los 2 rivales.\n👉 Ej: `#tagbattle @aliado @rival1 @rival2 1`');
+        let mentionIds = msg.mentionedIds || [];
+        if (mentionIds.length === 0 && typeof msg.getMentions === 'function') {
+            try {
+                const mentions = await msg.getMentions();
+                mentionIds = mentions.map((m) => (m.id && m.id._serialized ? m.id._serialized : '')).filter(Boolean);
+            } catch (e) {}
         }
 
-        const idAliado = msg.mentionedIds[0].split('@')[0].split(':')[0];
-        const idRival1 = msg.mentionedIds[1].split('@')[0].split(':')[0];
-        const idRival2 = msg.mentionedIds[2].split('@')[0].split(':')[0];
+        if (mentionIds.length !== 1) {
+            return await msg.reply('❌ Debes mencionar a **1 sola persona** (tu aliado).\n👉 Ej: `#tagbattle @aliado Pikachu`');
+        }
 
-        const arrIds = [remitenteId, idAliado, idRival1, idRival2];
-        if (new Set(arrIds).size !== 4) return await msg.reply('❌ Todos los participantes deben ser personas distintas.');
-
-        const jerarquia = parseInt(args[args.length - 1]);
-        if (isNaN(jerarquia) || jerarquia < 1 || jerarquia > 6) return await msg.reply('❌ Debes indicar con qué posición (1-6) de tu equipo vas a abrir. Ej: `#tagbattle @A @R1 @R2 1`');
+        const idAliado = mentionIds[0].split('@')[0].split(':')[0];
+        if (idAliado === remitenteId) return await msg.reply('❌ No puedes aliarte contigo mismo.');
 
         const equipoP1 = await pokemonService.obtenerEquipoPokemon(remitenteId);
         if (equipoP1.length === 0) return await msg.reply('❌ No tienes un equipo registrado.');
         
-        const poke = equipoP1.find(p => p.jerarquia === jerarquia);
-        if (!poke || poke.estado !== 'activo') return await msg.reply(`❌ El Pokémon en la posición ${jerarquia} no está asignado o está debilitado.`);
+        // Búsqueda inteligente: Evitamos problemas con los nombres largos buscando en el equipo
+        let pokeElegido = null;
+        const posMatch = texto.trim().match(/(?:^|\s)([1-6])$/); // Revisa si hay un numero del 1 al 6 al final
+        
+        if (posMatch) {
+            pokeElegido = equipoP1.find(p => p.jerarquia === parseInt(posMatch[1]));
+        } else {
+            // Busca si alguna de las palabras coincide con algún Pokémon del equipo
+            for (const p of equipoP1) {
+                const regex = new RegExp(`(?:^|\\s)${p.nombre}(?:$|\\s)`, 'i');
+                if (regex.test(texto)) {
+                    pokeElegido = p;
+                    break;
+                }
+            }
+        }
+
+        if (!pokeElegido || pokeElegido.estado !== 'activo') {
+            return await msg.reply(`❌ No tienes un Pokémon válido o activo en tu equipo que coincida con lo que escribiste.\n👉 Indica su nombre o posición (1-6). Ej: #tagbattle @aliado Pikachu`);
+        }
 
         const checkCD = verificarDescansoEquipo(equipoP1);
         if (checkCD.necesitaDescanso) return await msg.reply(`⏳ No puedes iniciar, tu *${checkCD.pokemon}* descansa por ${checkCD.mins}m ${checkCD.segs}s.`);
 
+        // Limpiamos cualquier sala pendiente anterior creada por este usuario
+        for (const [k, v] of pendingTagBattles.entries()) {
+            if (v.creatorId === remitenteId) pendingTagBattles.delete(k);
+        }
+
         const battleId = `tag_${Date.now()}`;
+        
+        const aliadoBD = await usuarioService.obtenerUsuario(idAliado);
+        const aliadoNombre = aliadoBD ? aliadoBD.nombre_whatsapp : 'Tu Aliado';
+
         pendingTagBattles.set(battleId, {
             battleId,
+            creatorId: remitenteId, // Guardamos quién creó la sala
             teamA: { 
-                p1: { id: remitenteId, name: getNombre(msg), ready: true, equipoBD: equipoP1, jerarquia: jerarquia }, 
-                p2: { id: idAliado, ready: false } 
+                p1: { id: remitenteId, name: remitenteNombre, ready: true, equipoBD: equipoP1, jerarquia: pokeElegido.jerarquia }, 
+                p2: { id: idAliado, name: aliadoNombre, ready: false } 
             },
-            teamB: { 
-                p1: { id: idRival1, ready: false }, 
-                p2: { id: idRival2, ready: false } 
-            }
+            teamB: null // Aún no hay rivales
         });
 
-        return await msg.reply(`⚔️ *¡RETO TAG 2VS2 LANZADO!* ⚔️\n\n🔵 Equipo Azul: *${getNombre(msg)}* y Aliado.\n🔴 Equipo Rojo: Rivales mencionados.\n\nPara que la batalla inicie, los otros 3 jugadores deben confirmar enviando:\n👉 *#tagaccept [posicion_del_1_al_6]*`);
+        return await msg.reply(`⚔️ *SALA TAG 2VS2 CREADA* ⚔️\n\n🔵 Equipo Azul: *${remitenteNombre}* y *${aliadoNombre}*.\n\n👉 *${remitenteNombre}*, ahora etiqueta a tus 2 rivales enviando:\n*#tagrivals @rival1 @rival2*`);
+    }
+
+    // ==========================================
+    // 1.5. ASIGNAR RIVALES (#tagrivals)
+    // ==========================================
+    if (cmd === '#tagrivals') {
+        let mentionIds = msg.mentionedIds || [];
+        if (mentionIds.length === 0 && typeof msg.getMentions === 'function') {
+            try {
+                const mentions = await msg.getMentions();
+                mentionIds = mentions.map((m) => (m.id && m.id._serialized ? m.id._serialized : '')).filter(Boolean);
+            } catch (e) {}
+        }
+
+        if (mentionIds.length !== 2) {
+            return await msg.reply('❌ Debes mencionar a exactamente **2 personas** (tus rivales).\n👉 Ej: `#tagrivals @rival1 @rival2`');
+        }
+
+        let targetBattle = null;
+        for (const b of pendingTagBattles.values()) {
+            if (b.creatorId === remitenteId && b.teamB === null) {
+                targetBattle = b;
+                break;
+            }
+        }
+
+        if (!targetBattle) return await msg.reply('❌ No tienes ninguna sala esperando rivales. Primero crea tu equipo usando `#tagbattle @aliado pokemon`');
+
+        const idR1 = mentionIds[0].split('@')[0].split(':')[0];
+        const idR2 = mentionIds[1].split('@')[0].split(':')[0];
+
+        const arrIds = [remitenteId, targetBattle.teamA.p2.id, idR1, idR2];
+        if (new Set(arrIds).size !== 4) return await msg.reply('❌ Todos los participantes deben ser personas distintas (No puedes pelear contra tu aliado o contra ti mismo).');
+
+        const r1BD = await usuarioService.obtenerUsuario(idR1);
+        const r2BD = await usuarioService.obtenerUsuario(idR2);
+        
+        const r1Nombre = r1BD ? r1BD.nombre_whatsapp : 'Rival 1';
+        const r2Nombre = r2BD ? r2BD.nombre_whatsapp : 'Rival 2';
+
+        targetBattle.teamB = {
+            p1: { id: idR1, name: r1Nombre, ready: false },
+            p2: { id: idR2, name: r2Nombre, ready: false }
+        };
+
+        return await msg.reply(`⚔️ *¡RETO TAG 2VS2 ENVIADO!* ⚔️\n\n🔴 Equipo Rojo: *${r1Nombre}* y *${r2Nombre}*.\n\nPara que la batalla inicie, los otros 3 jugadores (*${targetBattle.teamA.p2.name}*, *${r1Nombre}*, *${r2Nombre}*) deben confirmar enviando:\n👉 *#tagaccept [nombre_o_posicion]*`);
     }
 
     // ==========================================
     // 2. ACEPTAR DUELO
     // ==========================================
     if (cmd === '#tagaccept') {
-        const jerarquia = parseInt(args[1]);
-        if (isNaN(jerarquia) || jerarquia < 1 || jerarquia > 6) return await msg.reply('❌ Elige una posición válida del 1 al 6. Ej: `#tagaccept 1`');
-
         let targetBattle = null;
-        let myPath = null; // 'teamA.p2', 'teamB.p1', 'teamB.p2'
+        let myPath = null; 
 
         for (const b of pendingTagBattles.values()) {
             if (b.teamA.p2.id === remitenteId && !b.teamA.p2.ready) { targetBattle = b; myPath = 'teamA.p2'; break; }
-            if (b.teamB.p1.id === remitenteId && !b.teamB.p1.ready) { targetBattle = b; myPath = 'teamB.p1'; break; }
-            if (b.teamB.p2.id === remitenteId && !b.teamB.p2.ready) { targetBattle = b; myPath = 'teamB.p2'; break; }
+            if (b.teamB && b.teamB.p1.id === remitenteId && !b.teamB.p1.ready) { targetBattle = b; myPath = 'teamB.p1'; break; }
+            if (b.teamB && b.teamB.p2.id === remitenteId && !b.teamB.p2.ready) { targetBattle = b; myPath = 'teamB.p2'; break; }
         }
 
-        if (!targetBattle) return await msg.reply('❌ No tienes invitaciones pendientes para batallas 2vs2.');
+        if (!targetBattle) return await msg.reply('❌ No tienes invitaciones pendientes para batallas 2vs2 (O el creador aún no ha asignado a los rivales con #tagrivals).');
 
         const equipoUser = await pokemonService.obtenerEquipoPokemon(remitenteId);
         if (equipoUser.length === 0) return await msg.reply('❌ No tienes un equipo configurado.');
-        const poke = equipoUser.find(p => p.jerarquia === jerarquia);
-        if (!poke || poke.estado !== 'activo') return await msg.reply(`❌ El Pokémon en la posición ${jerarquia} no está asignado o está debilitado.`);
+        
+        // Búsqueda inteligente
+        let pokeElegido = null;
+        const posMatch = texto.trim().match(/(?:^|\s)([1-6])$/);
+        
+        if (posMatch) {
+            pokeElegido = equipoUser.find(p => p.jerarquia === parseInt(posMatch[1]));
+        } else {
+            for (const p of equipoUser) {
+                const regex = new RegExp(`(?:^|\\s)${p.nombre}(?:$|\\s)`, 'i');
+                if (regex.test(texto)) {
+                    pokeElegido = p;
+                    break;
+                }
+            }
+        }
+
+        if (!pokeElegido || pokeElegido.estado !== 'activo') {
+            return await msg.reply(`❌ No tienes un Pokémon válido o activo en tu equipo que coincida con lo que escribiste.\n👉 Indica su nombre o posición (1-6). Ej: #tagaccept Pikachu`);
+        }
 
         const checkCD = verificarDescansoEquipo(equipoUser);
         if (checkCD.necesitaDescanso) return await msg.reply(`⏳ No puedes aceptar, tu *${checkCD.pokemon}* descansa por ${checkCD.mins}m ${checkCD.segs}s.`);
 
         const [bando, jugador] = myPath.split('.');
-        targetBattle[bando][jugador] = { id: remitenteId, name: getNombre(msg), ready: true, equipoBD: equipoUser, jerarquia };
+        targetBattle[bando][jugador] = { id: remitenteId, name: remitenteNombre, ready: true, equipoBD: equipoUser, jerarquia: pokeElegido.jerarquia };
 
-        await msg.reply(`✅ Has aceptado el duelo 2vs2 con tu posición ${jerarquia}.`);
+        await msg.reply(`✅ *${remitenteNombre}* ha aceptado el duelo.`);
 
-        // Si todos están listos, INICIAR
-        if (targetBattle.teamA.p2.ready && targetBattle.teamB.p1.ready && targetBattle.teamB.p2.ready) {
+        // Si todos están listos y se han definido ambos equipos, INICIAR
+        if (targetBattle.teamA.p2.ready && targetBattle.teamB && targetBattle.teamB.p1.ready && targetBattle.teamB.p2.ready) {
             await msg.reply('🔥 ¡TODOS LOS ENTRENADORES ESTÁN LISTOS! Generando la arena 2vs2...');
             pendingTagBattles.delete(targetBattle.battleId);
 
@@ -326,9 +414,6 @@ async function handleTagBattle(msg, texto) {
     // 3. CAMBIO DE POKÉMON (RELEVO)
     // ==========================================
     if (cmd === '#tagswitch') {
-        const jerarquia = parseInt(args[1]);
-        if (isNaN(jerarquia) || jerarquia < 1 || jerarquia > 6) return await msg.reply('❌ Indica la posición válida de tu equipo (1-6). Ej: `#tagswitch 2`');
-
         let bActive = null, bandoObj = null, pIndex = -1;
         
         for (const b of activeTagBattles.values()) {
@@ -339,15 +424,30 @@ async function handleTagBattle(msg, texto) {
         if (!bActive) return await msg.reply('❌ No es tu turno para enviar un Pokémon a defender.');
 
         const jugador = bandoObj.players[pIndex];
-        const nuevoPoke = jugador.team.find(p => p.jerarquia === jerarquia);
+        
+        // Búsqueda inteligente del relevo
+        let pokeElegido = null;
+        const posMatch = texto.trim().match(/(?:^|\s)([1-6])$/);
+        
+        if (posMatch) {
+            pokeElegido = jugador.team.find(p => p.jerarquia === parseInt(posMatch[1]));
+        } else {
+            for (const p of jugador.team) {
+                const regex = new RegExp(`(?:^|\\s)${p.nombre}(?:$|\\s)`, 'i');
+                if (regex.test(texto)) {
+                    pokeElegido = p;
+                    break;
+                }
+            }
+        }
 
-        if (!nuevoPoke) return await msg.reply(`❌ No tienes Pokémon asignado en esa posición.`);
-        if (nuevoPoke.hp <= 0) return await msg.reply(`❌ Ese Pokémon está debilitado. ¡Elige otro!`);
+        if (!pokeElegido) return await msg.reply(`❌ No tienes Pokémon asignado en tu equipo que coincida con lo que escribiste.`);
+        if (pokeElegido.hp <= 0) return await msg.reply(`❌ Ese Pokémon está debilitado. ¡Elige otro!`);
 
-        jugador.activeJerarquia = nuevoPoke.jerarquia;
+        jugador.activeJerarquia = pokeElegido.jerarquia;
         bandoObj.necesitaCambioId = null;
 
-        await msg.reply(`🔄 *${jugador.name}* envía a *${nuevoPoke.nombre}* para cubrir la posición.`);
+        await msg.reply(`🔄 *${jugador.name}* envía a *${pokeElegido.nombre}* para cubrir la posición.`);
 
         // Si el otro bando no está esperando relevo, retomamos el combate
         if (!bActive.teamA.necesitaCambioId && !bActive.teamB.necesitaCambioId) {

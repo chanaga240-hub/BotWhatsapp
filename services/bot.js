@@ -209,10 +209,13 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#campo') ||
         textoMinuscula.startsWith('#sacrificio') ||
         textoMinuscula.startsWith('#mazmorra') ||
-        textoMinuscula.startsWith('#tagbattle') ||  
+        textoMinuscula.startsWith('#tagbattle') || 
+        textoMinuscula.startsWith('#tagrivals') ||  
         textoMinuscula.startsWith('#tagaccept') ||   
         textoMinuscula.startsWith('#tagswitch') ||
         textoMinuscula.startsWith('#give') ||
+        textoMinuscula.startsWith('#cultivo') ||
+        textoMinuscula.startsWith('#sell') ||
         textoMinuscula === '#help';
 
       if (!esComando) return;
@@ -233,9 +236,26 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
+        // COMANDO: #sell
+        // ==========================================
+        if (textoMinuscula.startsWith('#sell')) {
+          const { handleSell } = require('../commands/sell');
+          return await handleSell(msg, texto);
+        }
+
+        // ==========================================
+        // COMANDO: #cultivo
+        // ==========================================
+        if (textoMinuscula.startsWith('#cultivo')) {
+            const { handleCultivo } = require('../commands/cultivo');
+            return await handleCultivo(msg, texto);
+        }
+
+        // ==========================================
         // COMANDO: #tagbattle (2vs2 Multijugador)
         // ==========================================
         if (textoMinuscula.startsWith('#tagbattle') || 
+            textoMinuscula.startsWith('#tagrivals') || 
             textoMinuscula.startsWith('#tagaccept') || 
             textoMinuscula.startsWith('#tagswitch')) {
           const { handleTagBattle } = require('../commands/tagbattle');
@@ -660,11 +680,12 @@ class BotManager extends EventEmitter {
 
             const chatPrivadoId = msg.fromMe ? this.client.info.wid._serialized : (msg.author || msg.from);
 
-            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 8 Pokémon...`);
+            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 10 Pokémon...`);
 
             const bloques = [];
-            for (let i = 0; i < listaPokemon.length; i += 8) {
-              bloques.push(listaPokemon.slice(i, i + 8));
+            // CAMBIO: Ahora salta de 10 en 10 en lugar de 8
+            for (let i = 0; i < listaPokemon.length; i += 10) {
+              bloques.push(listaPokemon.slice(i, i + 10));
             }
 
             for (const [index, bloque] of bloques.entries()) {
@@ -696,7 +717,7 @@ class BotManager extends EventEmitter {
                     nombre: p.nombre,
                     nivel: nivelActual,
                     experiencia: p.experiencia || 0,
-                    tipos: getTiposEspanol(dataApi), // <--- AGREGA ESTA LÍNEA AQUÍ
+                    tipos: getTiposEspanol(dataApi), 
                     hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
                     atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
                     def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),

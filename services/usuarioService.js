@@ -157,7 +157,7 @@ async function transferirMonedas(remitenteId, destinatarioId, cantidad) {
 async function obtenerInventarioCompleto(whatsappId) {
   try {
     const query = `
-      SELECT u.pokeballs, u.monedas, i.pocion_xp_small, i.rocas_evolutivas, i.punta_adn, i.egg, i.mega_energia, i.llave_mazmorra
+SELECT u.pokeballs, u.monedas, i.pocion_xp_small, i.rocas_evolutivas, i.punta_adn, i.egg, i.mega_energia, i.llave_mazmorra, i.semilla, i.cultivos
       FROM usuarios u
       LEFT JOIN inventario i ON u.id = i.usuario_id
       WHERE u.whatsapp_id = ?
@@ -174,7 +174,9 @@ async function obtenerInventarioCompleto(whatsappId) {
       punta_adn: rows[0].punta_adn || 0,
       egg: rows[0].egg || 0,
       mega_energia: rows[0].mega_energia || 0,
-      llave_mazmorra: rows[0].llave_mazmorra || 0
+      llave_mazmorra: rows[0].llave_mazmorra || 0,
+      semilla: rows[0].semilla || 0,
+      cultivos: rows[0].cultivos || 0
     };
   } catch (error) {
     console.error('Error al obtener inventario:', error);
@@ -182,5 +184,53 @@ async function obtenerInventarioCompleto(whatsappId) {
   }
 }
 
+async function venderObjeto(whatsappId, itemColumn, cantidad, precioPorUnidad) {
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Obtener ID del usuario
+    const [usuarios] = await connection.execute('SELECT id FROM usuarios WHERE whatsapp_id = ?', [whatsappId]);
+    if (usuarios.length === 0) {
+      await connection.rollback();
+      return { error: 'usuario_no_encontrado' };
+    }
+    const usuarioId = usuarios[0].id;
+
+    // 2. Verificar que tenga la cantidad suficiente en el inventario
+    const [inv] = await connection.execute(
+      `SELECT ${itemColumn} FROM inventario WHERE usuario_id = ? FOR UPDATE`,
+      [usuarioId]
+    );
+
+    if (!inv[0] || inv[0][itemColumn] < cantidad) {
+      await connection.rollback();
+      return { error: 'cantidad_insuficiente', actual: inv[0] ? inv[0][itemColumn] : 0 };
+    }
+
+    // 3. Calcular ganancias, descontar objeto y sumar monedas
+    const totalGanancia = cantidad * precioPorUnidad;
+    
+    await connection.execute(
+      `UPDATE inventario SET ${itemColumn} = ${itemColumn} - ? WHERE usuario_id = ?`,
+      [cantidad, usuarioId]
+    );
+    
+    await connection.execute(
+      'UPDATE usuarios SET monedas = monedas + ? WHERE id = ?',
+      [totalGanancia, usuarioId]
+    );
+
+    await connection.commit();
+    return { success: true, ganancia: totalGanancia };
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al vender objeto:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 // Asegúrate de exportar sumarMonedas aquí abajo
-module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, sumarMonedas, realizarTrabajo, comprarObjeto, transferirMonedas, obtenerInventarioCompleto };
+module.exports = { obtenerUsuario, registrarUsuario, reclamarDaily, sumarExperiencia, sumarMonedas, realizarTrabajo, comprarObjeto, transferirMonedas, obtenerInventarioCompleto, venderObjeto };

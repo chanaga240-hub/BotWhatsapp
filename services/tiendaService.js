@@ -34,6 +34,8 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       producto = { nombre: "mega_energia", precioUnitario: 1000, tipo: 'inventario' };
     }else if (codigo === '007') { 
       producto = { nombre: "llave_mazmorra", precioUnitario: 700, tipo: 'inventario' };
+    }else if (codigo === '008') { 
+      producto = { nombre: "semilla", precioUnitario: 100, tipo: 'inventario' };
     } else {
       await connection.rollback();
       return { error: 'codigo_invalido' };
@@ -68,6 +70,7 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
       else if (producto.nombre === 'egg') columna = 'egg';
       else if (producto.nombre === 'mega_energia') columna = 'mega_energia';
       else if (producto.nombre === 'llave_mazmorra') columna = 'llave_mazmorra';
+      else if (producto.nombre === 'semilla') columna = 'semilla';
 
       if (invRows.length === 0) {
         // Si NO tiene fila en inventario, la creamos y le asignamos la cantidad comprada de una vez
@@ -78,7 +81,7 @@ async function procesarCompra(usuarioId, codigo, cantidad) {
         const megaEnergiaInit = columna === 'mega_energia' ? cantidad : 0;
         const LlaveMazmorraInit = columna === 'llave_mazmorra' ? cantidad : 0;
         await connection.execute(
-          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas, punta_adn, egg, mega_energia, llave_mazmorra) VALUES (?, ?, 0, ?, ?, ?, ?,?)',
+          'INSERT INTO inventario (usuario_id, pocion_xp_small, rare_candy, rocas_evolutivas, punta_adn, egg, mega_energia, llave_mazmorra, semilla) VALUES (?, ?, 0, ?, ?, ?, ?,?,?)',
           [usuarioId, pocionInit, rocasInit, puntaAdnInit, eggInit, megaEnergiaInit,LlaveMazmorraInit]
         );
       } else {

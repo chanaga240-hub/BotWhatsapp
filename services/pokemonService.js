@@ -621,7 +621,7 @@ async function obtenerExpediciones(whatsappId) {
   try {
     const [rows] = await db.execute(`
       SELECT e.id as expedicion_id, e.fecha_inicio, e.duracion_dias,
-             pa.id as pokemon_id, pa.nombre, pa.nivel, pa.experiencia,
+             pa.id as pokemon_id, pa.pokemon_id as pokedex_id, pa.nombre, pa.nivel, pa.experiencia,
              u.id as usuario_id
       FROM expedicion e
       JOIN pokemon_atrapados pa ON e.pokemon_id = pa.id
@@ -945,6 +945,85 @@ async function procesarSacrificio(whatsappId, idsPokemones, botellasXp) {
   }
 }
 
+async function cancelarExpedicion(whatsappId, nombrePokemon) {
+  const pokemon = await verificarYObtenerPokemon(whatsappId, nombrePokemon);
+  if (!pokemon) return { error: 'pokemon_no_encontrado' };
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Buscar si el Pokémon está en una expedición
+    const [expRows] = await connection.execute(
+      'SELECT * FROM expedicion WHERE pokemon_id = ? FOR UPDATE',
+      [pokemon.id]
+    );
+
+    if (expRows.length === 0) {
+      await connection.rollback();
+      return { error: 'no_en_expedicion' };
+    }
+
+    const exp = expRows[0];
+    const ahora = new Date();
+    const inicio = new Date(exp.fecha_inicio);
+    const msPorDia = 24 * 60 * 60 * 1000;
+    
+    // Calculamos los días completos (24h) que logró realizar
+    const diasTranscurridos = Math.floor((ahora - inicio) / msPorDia);
+
+    // 2. Eliminar de la tabla expedición de inmediato
+    await connection.execute('DELETE FROM expedicion WHERE id = ?', [exp.id]);
+
+    let monedasGanadas = 0;
+    let xpGanada = 0;
+    let subioNivel = false;
+    let nivelActual = pokemon.nivel || 1;
+    let expActual = pokemon.experiencia || 0;
+
+    // 3. Si logró hacer al menos 1 día completo, le pagamos proporcionalmente
+    if (diasTranscurridos > 0) {
+      monedasGanadas = 50 * diasTranscurridos;
+      xpGanada = 50 * diasTranscurridos;
+
+      // Entregar monedas al usuario
+      await connection.execute('UPDATE usuarios SET monedas = monedas + ? WHERE id = ?', [monedasGanadas, exp.usuario_id]);
+
+      // Entregar XP al Pokémon y revisar si sube de nivel
+      expActual += xpGanada;
+      let xpNecesaria = 100 + ((nivelActual - 1) * 25);
+
+      if (expActual >= xpNecesaria) {
+          nivelActual++;
+          expActual = expActual - xpNecesaria;
+          subioNivel = true;
+      }
+
+      await connection.execute(
+          'UPDATE pokemon_atrapados SET experiencia = ?, nivel = ? WHERE id = ?',
+          [expActual, nivelActual, pokemon.id]
+      );
+    }
+
+    await connection.commit();
+    return { 
+      success: true, 
+      diasCompletados: diasTranscurridos, 
+      monedas: monedasGanadas, 
+      xpGanada: xpGanada,
+      subioNivel, 
+      nuevoNivel: nivelActual 
+    };
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al cancelar expedición:', error);
+    return { error: 'db_error' };
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   registrarCaptura,
   eliminarHuevoIncubadora,
@@ -969,6 +1048,7 @@ module.exports = {
   reclamarExpedicion,
   enviarExpedicion,
   obtenerExpediciones,
+  cancelarExpedicion,
   usarHuevoIncubadora,
   revisarIncubadora,
   aplicarMegaEvolucion,

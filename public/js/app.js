@@ -430,7 +430,12 @@ window.renderPokedexGrid = function() {
 
   // 3. Renderizar el HTML al contenedor
   container.innerHTML = filteredList.map(poke => `
-    <article class="pokedex-card ${poke.estaEnEquipo ? 'pokedex-card-team' : ''}">
+    <article class="pokedex-card ${poke.estaEnEquipo ? 'pokedex-card-team' : ''}" 
+             onclick="showEffectiveness('${poke.pokemon_id}')" 
+             style="cursor: pointer; transition: all 0.2s ease;" 
+             onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 10px 20px rgba(0,0,0,0.5)';" 
+             onmouseout="this.style.transform='none'; this.style.boxShadow='none';"
+             title="Haz clic para ver fortalezas y debilidades">
       <div class="pokedex-card-img">
         <img src="/imagenes/${poke.pokemon_id}.png" alt="${escapeHtml(poke.nombre)}" loading="lazy" onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'">
       </div>
@@ -625,3 +630,165 @@ window.addEventListener('load', () => {
     }
   }, 3000); 
 });
+
+// =====================================
+// SISTEMA DE VENTANA EMERGENTE (EFECTIVIDAD DE TIPOS)
+// =====================================
+
+// 1. Inyectamos los estilos de la ventana emergente en el documento
+document.head.insertAdjacentHTML('beforeend', `
+  <style>
+  .eff-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(5px); opacity: 1; transition: opacity 0.3s ease; }
+  .eff-modal-overlay.hidden { opacity: 0; pointer-events: none; }
+  .eff-modal-content { background: #0f172a; border: 2px solid #38bdf8; border-radius: 16px; padding: 24px; width: 90%; max-width: 450px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8); transform: translateY(0); transition: transform 0.3s ease; max-height: 90vh; overflow-y: auto;}
+  .eff-modal-overlay.hidden .eff-modal-content { transform: translateY(30px); }
+  .eff-modal-close { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.1); border: none; cursor: pointer; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.2s; font-weight: bold;}
+  .eff-modal-close:hover { background: #ef4444; }
+  .eff-section { margin-top: 18px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+  .eff-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;}
+  .eff-title.weak4x { color: #f87171; }
+  .eff-title.weak2x { color: #fb923c; }
+  .eff-title.resist2x { color: #34d399; }
+  .eff-title.resist4x { color: #10b981; }
+  .eff-title.immune { color: #c084fc; }
+  .eff-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .eff-loading { text-align: center; color: #94a3b8; padding: 20px; font-style: italic; }
+  </style>
+`);
+
+// 2. Inyectamos la estructura HTML del Modal oculto
+document.body.insertAdjacentHTML('beforeend', `
+  <div id="effModal" class="eff-modal-overlay hidden" onclick="closeEffModal(event)">
+     <div class="eff-modal-content">
+        <button class="eff-modal-close" onclick="closeEffModal(event, true)">✕</button>
+        <div id="effModalBody"></div>
+     </div>
+  </div>
+`);
+
+// 3. Función para cerrar el modal
+window.closeEffModal = function(e, force = false) {
+   if (force || e.target.id === 'effModal') {
+      document.getElementById('effModal').classList.add('hidden');
+   }
+};
+
+// 4. Traductor de Tipos para que se vea estético
+const TYPE_ES_MAP = {
+  normal: 'Normal', fire: 'Fuego', water: 'Agua', electric: 'Eléctrico',
+  grass: 'Planta', ice: 'Hielo', fighting: 'Lucha', poison: 'Veneno',
+  ground: 'Tierra', flying: 'Volador', psychic: 'Psíquico', bug: 'Bicho',
+  rock: 'Roca', ghost: 'Fantasma', dragon: 'Dragón', dark: 'Siniestro',
+  steel: 'Acero', fairy: 'Hada'
+};
+
+// 5. La función principal que se activa al hacer clic en un Pokémon
+window.showEffectiveness = async function(pokeId) {
+  // Buscamos los datos locales del Pokémon al que le hicimos clic
+  const poke = window.currentPokedex.find(p => String(p.pokemon_id) === String(pokeId));
+  if(!poke) return;
+
+  const modal = document.getElementById('effModal');
+  const body = document.getElementById('effModalBody');
+  
+  modal.classList.remove('hidden');
+  
+  const typePills = poke.tipos.map(t => `<span class="type-pill type-${t}">${TYPE_ES_MAP[t] || t}</span>`).join('');
+  
+  // Estado de carga mientras viaja a la Base de Datos
+  body.innerHTML = `
+    <div style="text-align: center; margin-bottom: 10px;">
+       <img src="/imagenes/${poke.pokemon_id}.png" style="width: 80px; height: 80px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));" onerror="this.style.display='none'">
+       <h3 style="color: white; margin: 5px 0; font-size: 1.4rem;">${escapeHtml(poke.nombre)}</h3>
+       <div style="display: flex; justify-content: center; gap: 5px;">${typePills}</div>
+    </div>
+    <div class="eff-loading">📡 Consultando Base de Datos de Tipos...</div>
+  `;
+
+  try {
+     const res = await fetch(`/api/efectividad?tipos=${poke.tipos.join(',')}`);
+     if(!res.ok) throw new Error('Error en red');
+     const dataAPI = await res.json();
+     
+     const renderTags = (arr) => arr.map(t => `<span class="type-pill type-${t}">${TYPE_ES_MAP[t] || t}</span>`).join('');
+     const renderOfensiveTags = (arr) => arr.map(i => `<span class="type-pill type-${i.defensor}" style="opacity: 0.85;">${TYPE_ES_MAP[i.defensor]} <small style="opacity:0.7; font-weight:normal;">(vs ${TYPE_ES_MAP[i.mi_tipo]})</small></span>`).join('');
+
+     // === CABECERA DEL POKÉMON ===
+     let html = `<div style="text-align: center; margin-bottom: 20px;">
+       <img src="/imagenes/${poke.pokemon_id}.png" style="width: 80px; height: 80px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));" onerror="this.style.display='none'">
+       <h3 style="color: white; margin: 5px 0; font-size: 1.4rem;">${escapeHtml(poke.nombre)}</h3>
+       <div style="display: flex; justify-content: center; gap: 5px;">${typePills}</div>
+     </div>`;
+
+     // ==========================================
+     // SECCIÓN 1: EFECTOS DE MIS ATAQUES (OFENSIVO)
+     // ==========================================
+     html += `<h4 style="color: white; margin-top: 15px; border-bottom: 1px solid #334155; padding-bottom: 8px;">⚔️ Efectos de Mis Ataques</h4>`;
+     
+     Object.entries(dataAPI.ofensivo).forEach(([miTipo, data]) => {
+        html += `<div class="eff-section" style="margin-top: 10px;">`;
+        html += `<div style="margin-bottom: 10px; font-weight: bold; color: #cbd5e1; display:flex; align-items:center; gap:6px;">
+                    Ataques tipo <span class="type-pill type-${miTipo}" style="font-size:0.7rem;">${TYPE_ES_MAP[miTipo] || miTipo}</span>
+                 </div>`;
+        
+        if (data.fuerte.length > 0) {
+            html += `<div style="margin-bottom: 8px;"><span style="color:#34d399; font-size:0.85rem; font-weight:bold; display:block; margin-bottom:4px;">Súper Eficaz (x2) contra:</span> <div class="eff-tags">${renderTags(data.fuerte)}</div></div>`;
+        }
+        if (data.debil.length > 0) {
+            html += `<div><span style="color:#fb923c; font-size:0.85rem; font-weight:bold; display:block; margin-bottom:4px;">Poco Eficaz (x0.5) contra:</span> <div class="eff-tags">${renderTags(data.debil)}</div></div>`;
+        }
+        html += `</div>`;
+     });
+
+     // ==========================================
+     // SECCIÓN 2: DAÑO RECIBIDO (DEFENSIVO)
+     // ==========================================
+     html += `<h4 style="color: white; margin-top: 25px; border-bottom: 1px solid #334155; padding-bottom: 8px;">🛡️ Efecto al Recibir Ataques</h4>`;
+     
+     const def = dataAPI.defensivo;
+     let hayDefensas = false;
+
+     if (def.weak4x.length > 0) { html += `<div class="eff-section" style="margin-top: 10px;"><div class="eff-title weak4x">💥 x4 Súper Débil</div><div class="eff-tags">${renderTags(def.weak4x)}</div></div>`; hayDefensas = true; }
+     if (def.weak2x.length > 0) { html += `<div class="eff-section" style="margin-top: 10px;"><div class="eff-title weak2x">🔴 x2 Débil</div><div class="eff-tags">${renderTags(def.weak2x)}</div></div>`; hayDefensas = true; }
+     if (def.resist2x.length > 0) { html += `<div class="eff-section" style="margin-top: 10px;"><div class="eff-title resist2x">🟢 x0.5 Resiste</div><div class="eff-tags">${renderTags(def.resist2x)}</div></div>`; hayDefensas = true; }
+     if (def.resist4x.length > 0) { html += `<div class="eff-section" style="margin-top: 10px;"><div class="eff-title resist4x">🛡️ x0.25 Súper Resiste</div><div class="eff-tags">${renderTags(def.resist4x)}</div></div>`; hayDefensas = true; }
+     
+     if (!hayDefensas) {
+         html += `<div class="eff-section" style="text-align: center; color: #94a3b8; margin-top: 10px;">Este Pokémon recibe daño neutral de todos los ataques (No tiene debilidades ni resistencias).</div>`;
+     }
+
+     // ==========================================
+     // SECCIÓN 3: INMUNIDADES
+     // ==========================================
+     html += `<h4 style="color: white; margin-top: 25px; border-bottom: 1px solid #334155; padding-bottom: 8px;">🚫 Inmunidades</h4>`;
+     
+     const inmu = dataAPI.inmunidades;
+     let hayInmunidades = false;
+
+     if (inmu.no_me_hacen_dano.length > 0) {
+         html += `<div class="eff-section" style="margin-top: 10px; border-color: #a855f7; background: rgba(168, 85, 247, 0.1);">
+                    <div class="eff-title immune">👻 No me hacen daño (Recibo 0):</div>
+                    <div class="eff-tags">${renderTags(inmu.no_me_hacen_dano)}</div>
+                  </div>`;
+         hayInmunidades = true;
+     }
+
+     if (inmu.no_hago_dano.length > 0) {
+         html += `<div class="eff-section" style="margin-top: 10px; border-color: #475569; background: rgba(0,0,0,0.3);">
+                    <div class="eff-title" style="color: #94a3b8;">🧱 No hago daño a (Causo 0):</div>
+                    <div class="eff-tags">${renderOfensiveTags(inmu.no_hago_dano)}</div>
+                  </div>`;
+         hayInmunidades = true;
+     }
+
+     if (!hayInmunidades) {
+         html += `<div class="eff-section" style="text-align: center; color: #94a3b8; margin-top: 10px;">No existen inmunidades involucradas en este Pokémon.</div>`;
+     }
+
+     // Insertar todo al HTML final
+     body.innerHTML = html;
+
+  } catch (err) {
+     body.innerHTML += `<div style="color: #ef4444; text-align: center; margin-top: 10px;">Error al conectar con la base de datos para cargar las tablas de tipos.</div>`;
+  }
+};

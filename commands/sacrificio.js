@@ -1,4 +1,8 @@
 const pokemonService = require('../services/pokemonService');
+// Importamos dependencias de Canvas y API
+const { generarImagenSacrificio } = require('../services/canvasService');
+const { getImagen } = require('../services/pokeapi');
+const { MessageMedia } = require('whatsapp-web.js');
 
 async function handleSacrificio(msg, texto) {
     const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
@@ -49,23 +53,44 @@ async function handleSacrificio(msg, texto) {
     const sumaNiveles = pokemones.reduce((acc, p) => acc + (p.nivel || 1), 0);
     let botellasXp = 0;
     
-    if (sumaNiveles > 10) {
-        botellasXp = 1 + Math.floor((sumaNiveles - 11) / 5);
+    if (sumaNiveles > 9) {
+        botellasXp = 1 + Math.floor((sumaNiveles - 10) / 5);
     }
 
     // 6. Ejecutar en Base de Datos
     const resultado = await pokemonService.procesarSacrificio(whatsappId, Array.from(idsUnicos), botellasXp);
 
     if (resultado.success) {
-        let mensaje = `🔮 *RITUAL DE SACRIFICIO COMPLETADO* 🔮\n\n`;
-        mensaje += `Has entregado a: *${pokemones[0].nombre}*, *${pokemones[1].nombre}* y *${pokemones[2].nombre}*.\n`;
-        mensaje += `Suma total de niveles: *${sumaNiveles}*\n\n`;
-        mensaje += `🎁 *Recompensas obtenidas:*\n`;
-        mensaje += `🥚 1x Huevo (egg)\n`;
+        // Construimos el pie de foto
+        let caption = `Has entregado a: *${pokemones[0].nombre}*, *${pokemones[1].nombre}* y *${pokemones[2].nombre}*.\n`;
+        caption += `Suma total de niveles: *${sumaNiveles}*\n\n`;
+        caption += `🎁 *Recompensas obtenidas:*\n`;
+        caption += `🥚 1x Huevo (egg)\n`;
         if (botellasXp > 0) {
-            mensaje += `🧪 ${botellasXp}x Botella(s) de XP (pocion_xp_small)\n`;
+            caption += `🧪 ${botellasXp}x Botella(s) de XP (pocion_xp_small)\n`;
         }
-        return await msg.reply(mensaje);
+        
+        await msg.reply('⏳ Dibujando el círculo de transmutación y preparando el ritual...');
+
+        try {
+            // Mapeamos los datos de los 3 Pokémon para pasarlos al generador de Canvas
+            const datosCanvas = pokemones.map(p => ({
+                nombre: p.nombre,
+                spriteUrl: getImagen({ id: p.pokemon_id }) // Extraemos la ruta local de la imagen
+            }));
+
+            // Generamos la imagen con Canvas
+            const imageBuffer = await generarImagenSacrificio(datosCanvas);
+            const media = new MessageMedia('image/png', imageBuffer.toString('base64'), 'sacrificio.png');
+            
+            // Enviamos la imagen adjuntando el caption
+            return await msg.reply(media, undefined, { caption });
+        } catch (canvasErr) {
+            console.error('Error generando imagen de sacrificio:', canvasErr);
+            // Fallback si falla el Canvas
+            return await msg.reply(`🔮 *RITUAL DE SACRIFICIO COMPLETADO* 🔮\n\n${caption}`);
+        }
+
     } else {
         return await msg.reply('⚠️ Ocurrió un error en el ritual. Inténtalo de nuevo.');
     }
