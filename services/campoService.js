@@ -1,6 +1,6 @@
 const db = require('./database');
 
-const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison','Ground', 'Ghost', 'Flying', 'Steel','Bug', 'Fairy', 'Psychic'];
+const TIPOS_HABILITADOS = ['normal', 'fire', 'water', 'Electric', 'Grass', 'Ice', 'Poison','Ground', 'Ghost', 'Flying', 'Steel','Bug', 'Fairy', 'Psychic', 'Fighting', 'Rock', 'Dragon', 'Dark'];
 
 function generarRecompensaAleatoria() {
     const rand = Math.random();
