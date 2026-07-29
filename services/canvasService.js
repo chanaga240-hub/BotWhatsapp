@@ -467,7 +467,8 @@ async function generarImagenInventario(inv, nombreEntrenador) {
     { label: 'MEGA ENERGÍA', value: inv.mega_energia || 0, icon: '🧿', color: '#f472b6' },
     { label: 'LLAVE MAZMORRA', value: inv.llave_mazmorra || 0, icon: '🗝️', color: '#94a3b8' },
     { label: 'SEMILLAS', value: inv.semilla || 0, icon: '🌰', color: '#bef264' },
-    { label: 'CULTIVOS', value: inv.cultivos || 0, icon: '🌾', color: '#fcd34d' }
+    { label: 'CULTIVOS', value: inv.cultivos || 0, icon: '🌾', color: '#fcd34d' },
+    { label: 'HERRAMIENTAS', value: inv.herramientas || 0, icon: '🛠️', color: '#cbd5e1' }
   ];
 
   for (let i = 0; i < items.length; i++) {
@@ -925,5 +926,183 @@ async function generarImagenCultivos(cultivos, nombreEntrenador) {
   return canvas.toBuffer('image/png');
 }
 
+async function generarImagenMinas(minas, nombreEntrenador) {
+  const colCount = 3; 
+  const rowCount = 2; 
+  const cardWidth = 260; 
+  const cardHeight = 250; 
+  const marginX = 30;
+  const marginY = 30;
+  const headerHeight = 120;
+
+  const canvasWidth = (colCount * cardWidth) + ((colCount + 1) * marginX);
+  const canvasHeight = headerHeight + (rowCount * cardHeight) + (rowCount * marginY) + marginY;
+
+  const canvas = createCanvas(canvasWidth, canvasHeight);
+  const ctx = canvas.getContext('2d');
+
+  // 1. Fondo de cueva profunda
+  const bgGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+  bgGradient.addColorStop(0, '#1e293b'); 
+  bgGradient.addColorStop(0.5, '#0f172a');
+  bgGradient.addColorStop(1, '#020617'); 
+  ctx.fillStyle = bgGradient;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  // 2. Chispas de lava / Polvo de roca
+  ctx.fillStyle = '#f97316';
+  for(let i = 0; i < 40; i++) {
+    ctx.globalAlpha = Math.random() * 0.5 + 0.1;
+    ctx.beginPath();
+    ctx.arc(Math.random() * canvasWidth, Math.random() * canvasHeight, Math.random() * 2 + 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1.0;
+
+  // 3. Título
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 42px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`⛰️ CANTERA DE ${nombreEntrenador.toUpperCase()} ⛰️`, canvasWidth / 2, 60);
+  ctx.shadowBlur = 0; 
+  ctx.fillStyle = '#64748b';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Desciende a las profundidades. Requiere fuerza física, precisión y altas temperaturas.', canvasWidth / 2, 95);
+
+  // 4. Dibujar Slots
+  for (let i = 0; i < 6; i++) {
+    const c = minas.find(x => x.slot === (i + 1)) || { slot: i + 1, estado: 'vacio' };
+    
+    const col = i % colCount;
+    const row = Math.floor(i / colCount);
+
+    const x = marginX + (col * (cardWidth + marginX));
+    const y = headerHeight + (row * (cardHeight + marginY));
+
+    // Panel Base
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#1e293b'; 
+    drawRoundRect(ctx, x, y, cardWidth, cardHeight, 15, true, false);
+    ctx.shadowBlur = 0;
+
+    // Borde
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 3;
+    drawRoundRect(ctx, x, y, cardWidth, cardHeight, 15, false, true);
+
+    // Cabecera Interna
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`TÚNEL ${c.slot}`, x + 20, y + 35);
+
+    // Zona Interior (Túnel)
+    const caveX = x + 20;
+    const caveY = y + 50;
+    const caveW = cardWidth - 40;
+    const caveH = 120;
+
+    ctx.textAlign = 'center';
+
+    const cincoHorasMs = 5 * 3600000;
+    const ahoraMs = Date.now();
+
+    if (c.estado === 'vacio') {
+      ctx.fillStyle = '#0f172a';
+      drawRoundRect(ctx, caveX, caveY, caveW, caveH, 10, true, false);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '45px sans-serif';
+      ctx.fillText('🪨', x + cardWidth/2, caveY + 75);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('ROCA SÓLIDA', x + cardWidth/2, y + 200);
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '14px sans-serif';
+      ctx.fillText('Usa: #mina picar', x + cardWidth/2, y + 225);
+
+    } else if (c.estado === 'picado') {
+      ctx.fillStyle = '#1e1b4b';
+      drawRoundRect(ctx, caveX, caveY, caveW, caveH, 10, true, false);
+      
+      const inicio = new Date(c.fecha_picado).getTime();
+      const restante = (inicio + cincoHorasMs) - ahoraMs;
+
+      if (restante <= 0) {
+        ctx.fillStyle = '#8b5cf6'; // Morado místico
+        ctx.font = '45px sans-serif';
+        ctx.fillText('⛏️', x + cardWidth/2, caveY + 75);
+
+        ctx.fillStyle = '#c084fc';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText('VETA EXPUESTA', x + cardWidth/2, y + 200);
+        ctx.fillStyle = '#d97706';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Usa: #mina extraer', x + cardWidth/2, y + 225);
+      } else {
+        const horas = Math.floor(restante / 3600000);
+        const minutos = Math.floor((restante % 3600000) / 60000);
+
+        ctx.fillStyle = '#4c1d95';
+        ctx.font = '40px sans-serif';
+        ctx.fillText('💨', x + cardWidth/2, caveY + 75);
+
+        ctx.fillStyle = '#a78bfa';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`Disipando gas: ${horas}h ${minutos}m`, x + cardWidth/2, y + 200);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Fase: Espera', x + cardWidth/2, y + 225);
+      }
+
+    } else if (c.estado === 'extraido') {
+      const inicio = new Date(c.fecha_extraccion).getTime();
+      const restante = (inicio + cincoHorasMs) - ahoraMs;
+
+      ctx.fillStyle = '#2e1065'; // Morado muy oscuro
+      drawRoundRect(ctx, caveX, caveY, caveW, caveH, 10, true, false);
+
+      if (restante > 0) {
+        const horas = Math.floor(restante / 3600000);
+        const minutos = Math.floor((restante % 3600000) / 60000);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '45px sans-serif';
+        ctx.fillText('🔥', x + cardWidth/2, caveY + 75);
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`Enfriando mineral: ${horas}h ${minutos}m`, x + cardWidth/2, y + 200);
+      } else {
+        // Listo para forjar, dibujamos las 5 barras de progreso
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '40px sans-serif';
+        ctx.fillText('💎', x + cardWidth/2, caveY + 60);
+
+        const barW = (caveW - 40) / 5;
+        for (let b = 0; b < 5; b++) {
+            const bx = caveX + 10 + (b * (barW + 5));
+            const by = caveY + 85;
+            ctx.fillStyle = b < c.refinados_completados ? '#38bdf8' : 'rgba(0,0,0,0.5)';
+            drawRoundRect(ctx, bx, by, barW, 15, 4, true, false);
+        }
+
+        ctx.fillStyle = '#7dd3fc';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`Forja: ${c.refinados_completados}/5`, x + cardWidth/2, y + 200);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Usa: #mina refinar', x + cardWidth/2, y + 225);
+      }
+    }
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
 // === ACTUALIZA ESTA LÍNEA AL FINAL ===
-module.exports = { generarCollagePokemon, generarImagenVersus, generarSilueta, generarImagenIncubadora, generarImagenPoketeam, generarImagenInventario, generarImagenExpediciones, generarImagenSacrificio, generarImagenCultivos };
+module.exports = { generarCollagePokemon, generarImagenVersus, generarSilueta, generarImagenIncubadora, generarImagenPoketeam, generarImagenInventario, generarImagenExpediciones, generarImagenSacrificio, generarImagenCultivos, generarImagenMinas };

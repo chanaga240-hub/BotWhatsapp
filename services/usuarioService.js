@@ -157,7 +157,7 @@ async function transferirMonedas(remitenteId, destinatarioId, cantidad) {
 async function obtenerInventarioCompleto(whatsappId) {
   try {
     const query = `
-SELECT u.pokeballs, u.monedas, i.pocion_xp_small, i.rocas_evolutivas, i.punta_adn, i.egg, i.mega_energia, i.llave_mazmorra, i.semilla, i.cultivos
+      SELECT u.pokeballs, u.monedas, i.pocion_xp_small, i.rocas_evolutivas, i.punta_adn, i.egg, i.mega_energia, i.llave_mazmorra, i.semilla, i.cultivos, i.herramientas
       FROM usuarios u
       LEFT JOIN inventario i ON u.id = i.usuario_id
       WHERE u.whatsapp_id = ?
@@ -176,7 +176,8 @@ SELECT u.pokeballs, u.monedas, i.pocion_xp_small, i.rocas_evolutivas, i.punta_ad
       mega_energia: rows[0].mega_energia || 0,
       llave_mazmorra: rows[0].llave_mazmorra || 0,
       semilla: rows[0].semilla || 0,
-      cultivos: rows[0].cultivos || 0
+      cultivos: rows[0].cultivos || 0,
+      herramientas: rows[0].herramientas || 0
     };
   } catch (error) {
     console.error('Error al obtener inventario:', error);

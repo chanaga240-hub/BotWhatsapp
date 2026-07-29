@@ -216,6 +216,7 @@ class BotManager extends EventEmitter {
         textoMinuscula.startsWith('#give') ||
         textoMinuscula.startsWith('#cultivo') ||
         textoMinuscula.startsWith('#sell') ||
+        textoMinuscula.startsWith('#mina') ||
         textoMinuscula === '#help';
 
       if (!esComando) return;
@@ -666,90 +667,19 @@ class BotManager extends EventEmitter {
         }
 
         // ==========================================
-        // COMANDO: #pokedex (BLINDADO CONTRA ERRORES DE ID/NOMBRE)
+        // COMANDO: #pokedex (Refactorizado con Filtros)
         // ==========================================
         if (textoMinuscula.startsWith('#pokedex')) {
-          try {
-            const { consultarPokemon, getImagen, getStat, getTiposEspanol } = require('./pokeapi');
-            const { generarCollagePokemon } = require('../services/canvasService');
+          const { handlePokedex } = require('../commands/pokedex');
+          return await handlePokedex(msg, texto, this, usuario);
+        }
 
-            const listaPokemon = await pokemonService.obtenerPokedex(whatsappId);
-            if (!listaPokemon || listaPokemon.length === 0) {
-              return await msg.reply('🎒 Tu Pokédex está vacía. ¡Invoca un #pokesalvaje!');
-            }
-
-            const chatPrivadoId = msg.fromMe ? this.client.info.wid._serialized : (msg.author || msg.from);
-
-            await this.client.sendMessage(chatPrivadoId, `📱 *POKÉDEX DE ${usuario.nombre_whatsapp.toUpperCase()}*\nGenerando hojas de 10 Pokémon...`);
-
-            const bloques = [];
-            // CAMBIO: Ahora salta de 10 en 10 en lugar de 8
-            for (let i = 0; i < listaPokemon.length; i += 10) {
-              bloques.push(listaPokemon.slice(i, i + 10));
-            }
-
-            for (const [index, bloque] of bloques.entries()) {
-              const datosBloque = [];
-
-              for (const p of bloque) {
-                let nombreBase = p.nombre.toLowerCase().trim();
-                if (nombreBase === 'oinkologne') nombreBase = p.genero === 'female' ? 'oinkologne-female' : 'oinkologne-male';
-                let idApi = (p.pokemon_id && p.pokemon_id < 1500) ? p.pokemon_id : nombreBase;
-                if (nombreBase.includes('urshifu')) idApi = 'urshifu-single-strike';
-
-                // CONTROL DE EXCEPCIONES INTERNO PARA EVITAR LA CAÍDA GLOBAL
-                let dataApi = null;
-                try {
-                  dataApi = await consultarPokemon(idApi);
-                } catch (errId) {
-                  try {
-                    dataApi = await consultarPokemon(nombreBase);
-                  } catch (errName) {
-                    this.log(`[Pokedex] Saltando Pokémon inváldo en API: "${nombreBase}" (ID: ${idApi}). Error: ${errName.message}`, 'warn');
-                  }
-                }
-                
-                if (dataApi) {
-                  const nivelActual = p.nivel || 1;
-                  const multNivel = 1 + (nivelActual - 1) * 0.05;
-
-                  datosBloque.push({
-                    nombre: p.nombre,
-                    nivel: nivelActual,
-                    experiencia: p.experiencia || 0,
-                    tipos: getTiposEspanol(dataApi), 
-                    hp: Math.floor((getStat(dataApi, 'hp') || 0) * 2 * multNivel),
-                    atk: Math.floor((getStat(dataApi, 'attack') || 0) * multNivel),
-                    def: Math.floor((getStat(dataApi, 'defense') || 0) * multNivel),
-                    spAtk: Math.floor((getStat(dataApi, 'special-attack') || 0) * multNivel),
-                    spDef: Math.floor((getStat(dataApi, 'special-defense') || 0) * multNivel),
-                    vel: Math.floor((getStat(dataApi, 'speed') || 0)),
-                    spriteUrl: getImagen(dataApi)
-                  });
-                }
-              }
-
-              // Solo genera la hoja si hay datos válidos procesados
-              if (datosBloque.length > 0) {
-                const imageBuffer = await generarCollagePokemon(datosBloque);
-                const media = new MessageMedia('image/png', imageBuffer.toString('base64'), `pokedex_${index}.png`);
-
-                await this.client.sendMessage(chatPrivadoId, media, {
-                  caption: `📦 *Hoja de Pokédex ${index + 1}/${bloques.length}*`
-                });
-              } else {
-                await this.client.sendMessage(chatPrivadoId, `⚠️ La hoja ${index + 1} no contenía Pokémon válidos para la API actual.`);
-              }
-
-              await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-
-            this.log(`[Bot] Pokédex enviada a ${usuario.nombre_whatsapp}`, 'info');
-
-          } catch (err) {
-            console.error('Error en #pokedex:', err);
-            await msg.reply('⚠️ Hubo un error procesando tu Pokédex.');
-          }
+        // ==========================================
+        // COMANDO: #mina
+        // ==========================================
+        if (textoMinuscula.startsWith('#mina')) {
+            const { handleMina } = require('../commands/mina');
+            return await handleMina(msg, texto);
         }
 
         // ==========================================

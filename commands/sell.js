@@ -16,16 +16,17 @@ async function handleSell(msg, texto) {
     }
 
     // Diccionario de objetos que se pueden vender
-    // En el futuro puedes agregar más cosas aquí
     const mercado = {
         'cultivos': { columna: 'cultivos', precio: 125, nombreTexto: 'Cultivos 🌾' },
-        'cultivo': { columna: 'cultivos', precio: 125, nombreTexto: 'Cultivos 🌾' } // Alias en singular
+        'cultivo': { columna: 'cultivos', precio: 125, nombreTexto: 'Cultivos 🌾' }, // Alias
+        'herramientas': { columna: 'herramientas', precio: 100, nombreTexto: 'Herramientas 🛠️' },
+        'herramienta': { columna: 'herramientas', precio: 100, nombreTexto: 'Herramientas 🛠️' } // Alias
     };
 
     const infoVenta = mercado[objeto];
 
     if (!infoVenta) {
-        return await msg.reply('❌ Ese objeto no se puede vender en el mercado o no existe.\n👉 Actualmente puedes vender: *cultivos*');
+        return await msg.reply('❌ Ese objeto no se puede vender en el mercado o no existe.\n👉 Actualmente puedes vender: *cultivos, herramientas*');
     }
 
     // Ejecutamos la venta en la Base de Datos
