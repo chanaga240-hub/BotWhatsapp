@@ -6,7 +6,20 @@ const { MessageMedia } = require('whatsapp-web.js');
 async function handlePokedex(msg, texto, bot, usuario) {
   const whatsappId = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
   const args = texto.trim().toLowerCase().split(/\s+/);
-  const subComando = args[1]; // Detectar si escribió "cultivar" o "mina"
+  const subComando = args[1]; // Detectar si escribió "cultivo" o "mina"
+
+  // ==========================================
+  // VALIDACIÓN DE ESCRITURA (SUB-COMANDOS)
+  // ==========================================
+  if (subComando && !['cultivo', 'mina'].includes(subComando)) {
+    return await msg.reply(
+      '❌ *Filtro incorrecto o mal escrito.*\n\n' +
+      'Las opciones válidas para consultar tu Pokédex son:\n\n' +
+      '🎒 *#pokedex* (Muestra todos tus Pokémon)\n' +
+      '🌱 *#pokedex cultivo* (Filtra especialistas para la Granja)\n' +
+      '⛏️ *#pokedex mina* (Filtra especialistas para la Mina)'
+    );
+  }
 
   try {
     const listaPokemon = await pokemonService.obtenerPokedex(whatsappId);
@@ -22,7 +35,7 @@ async function handlePokedex(msg, texto, bot, usuario) {
     let filtroActivo = null;
     let mensajeFiltro = '';
     
-    if (subComando === 'cultivar') {
+    if (subComando === 'cultivo') {
       filtroActivo = ['grass', 'water', 'ground']; // Planta, Agua, Tierra
       mensajeFiltro = '\n🌱 *[Filtro Activo: Especialistas de Cultivo]*';
     } else if (subComando === 'mina') {
